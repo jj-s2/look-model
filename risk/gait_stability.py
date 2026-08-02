@@ -94,13 +94,15 @@ class GaitStabilityAnalyzer:
 
     def analyze(self, keypoints: Any, keypoint_scores: Any = None) -> dict[str, float]:
         """Legacy dictionary API retained for existing pre-fall callers."""
+        if len(self._frames(keypoints)) < 3:
+            return self._empty_legacy_result()
         features = self.extract_features(
             {"keypoints": keypoints, "keypoint_scores": keypoint_scores}, None)
         points, _ = self._point_frames(self._frames(keypoints))
         legacy = self._legacy_measurements(points)
         legacy["confidence"] = features.keypoint_quality
         legacy["risk_score"] = self._legacy_risk(legacy)
-        return {**legacy, **asdict(features)}
+        return {**legacy, **asdict(features), "valid": True}
 
     def analyze_windowed(self, keypoints: Any, keypoint_scores: Any = None, stride: int | None = None) -> list[dict[str, float]]:
         frames = self._frames(keypoints)
@@ -181,6 +183,27 @@ class GaitStabilityAnalyzer:
                 0.15 * contribution(metrics["com_vel_y"], 1.0, 0.8) +
                 0.10 * contribution(metrics["com_vertical_drop"], 15.0, 8.0))
         return min(1.0, max(0.0, risk))
+
+    @staticmethod
+    def _empty_legacy_result() -> dict[str, float]:
+        """Safe legacy result for windows too short to establish a trend."""
+        return {
+            "activity_level": 0.0,
+            "activity_trend": 0.0,
+            "com_height": 0.0,
+            "com_vertical_drop": 0.0,
+            "com_vel_y": 0.0,
+            "activity_burst": 0.0,
+            "com_sway": 0.0,
+            "body_lean_angle": 0.0,
+            "body_lean_var": 0.0,
+            "lean_trend": 0.0,
+            "gait_jitter": 0.0,
+            "confidence": 0.0,
+            "risk_score": 0.0,
+            **asdict(GaitFeatures()),
+            "valid": False,
+        }
 
     @staticmethod
     def _to_list(value: Any) -> Any:

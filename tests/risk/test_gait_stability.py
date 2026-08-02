@@ -79,3 +79,12 @@ def test_windowed_analysis_preserves_keypoint_scores():
     assert result
     assert result[0]["confidence"] == pytest.approx(0.25)
     assert result[0]["keypoint_quality"] == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize("sequence", [[], [_sequence()[0]], _sequence()[:2]])
+def test_legacy_analyze_marks_empty_or_short_sequences_invalid(sequence):
+    result = GaitStabilityAnalyzer().analyze(sequence)
+
+    assert result["risk_score"] == 0.0
+    assert result["valid"] is False
+    assert {"com_vertical_drop", "com_vel_y", "activity_burst", "confidence"} <= result.keys()
