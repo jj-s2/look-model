@@ -13,6 +13,7 @@
 - 使用仓库现有 `.conda` Python 3.10/CUDA 环境；先做兼容性冒烟测试，确认必要前不升级 PyTorch/OpenMMLab。
 - 所有萤石凭据、设备序列号和验证码只放在 `.env`，日志和异常中必须脱敏；仓库只提交 `.env.example`。
 - C6c 的对讲能力通过运行时能力查询确认。连续视频可用于视觉分析，但不做连续录音；比赛版语音提示默认由电脑扬声器播放。
+- 当前设备未连接；所有单元测试、集成测试和演示默认使用离线视频/JSONL 夹具，不得要求设备在线。真实 C6c/SDNL1 探测仅作为设备接通后的可选验收步骤，未接通时报告 `unavailable` 而不是失败或伪造在线状态。
 - SDNL1 只消费实际返回且有单位、时间戳的字段。接口不可用时输出 `unavailable`，演示数据必须带 `demo=true`。
 - 心理健康模块只输出筛查和变化风险，不做医学诊断。完整 GDS-15 的主动邀请间隔不少于 28 天，短问候不少于 7 天，21:00–08:00 不主动打扰；跌倒后只允许一次即时确认。
 - 个体生理和步态基线需要至少 7 个有效自然日；异常日不回写基线。
@@ -338,7 +339,7 @@ Expected: PASS。
 
 Run: `.\.conda\python.exe scripts/probe_ezviz_devices.py`
 
-Expected: 未配置 `.env` 时给出缺失变量名并以退出码 2 结束，不打印任何环境变量值；配置后才做真实探测。
+Expected: 未配置 `.env` 时给出缺失变量名并以退出码 2 结束，不打印任何环境变量值；设备未连接时允许使用 `--offline-fixture` 输出明确 `unavailable` 状态。
 
 - [ ] **Step 5: 提交本任务**
 
@@ -1012,9 +1013,9 @@ Expected: 只有在 F1、召回率、延迟和误报率达到全局门槛时退�
 
 - [ ] **Step 5: 进行真实设备能力核验**
 
-Run: `.\.conda\python.exe scripts/probe_ezviz_devices.py --write-report docs/device-capability-report.md`
+Run: `.\.conda\python.exe scripts/probe_ezviz_devices.py --offline-fixture --write-report docs/device-capability-report.md`
 
-Expected: C6c 的直播和对讲能力、SDNL1 数据接口状态来自真实响应；缺失能力写明 `unavailable`，不以演示数据冒充。
+Expected: 在设备未连接时生成含 `unavailable` 状态的能力报告并正常退出；设备接通后再运行不带 `--offline-fixture` 的命令，C6c 的直播和对讲能力、SDNL1 数据接口状态才来自真实响应，缺失能力写明 `unavailable`，不以演示数据冒充。
 
 - [ ] **Step 6: 提交本任务**
 
@@ -1028,7 +1029,7 @@ git commit -m "docs: add verified deployment and evaluation workflow"
 ## Final Verification Gate
 
 - [ ] 运行 `.\.conda\python.exe -m pytest -q` 并保存完整输出。
-- [ ] 运行真实 C6c 直播至少 30 分钟，记录断流次数、自动恢复时间、平均 FPS 和 P95 延迟。
+- [ ] 设备接通后再运行真实 C6c 直播至少 30 分钟，记录断流次数、自动恢复时间、平均 FPS 和 P95 延迟；设备未接通时使用离线回放并在报告中标记真实设备验证跳过。
 - [ ] 用公开跌倒/日常活动数据执行受试者级评估，确认 F1、召回和误报率不低于全局门槛。
 - [ ] 核对所有心理健康文案均使用“筛查、变化、建议人工关注”，不出现诊断结论。
 - [ ] 搜索仓库确认没有真实 `appSecret`、access token、设备验证码、完整设备序列号或旧绝对路径。
