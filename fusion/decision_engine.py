@@ -75,6 +75,13 @@ class DecisionEngine:
         )
 
     def _fall_event(self, event: SensorEvent, radar_matched: bool) -> RiskDecision:
+        quality_failure = self._quality_failure(event)
+        if quality_failure is not None:
+            return RiskDecision(
+                "fall_event", "warning", 0.0,
+                ("fall event evidence is insufficient for confirmation", quality_failure), "degraded",
+                "check the person manually and restore reliable monitoring", self._subject(event), event.timestamp,
+            )
         recovered = bool(event.payload.get("recovered") or event.payload.get("recovery_confirmed"))
         confirmed = bool(event.payload.get("confirmed"))
         quality: DecisionQuality = "multimodal" if radar_matched else "vision_only"
@@ -98,6 +105,13 @@ class DecisionEngine:
         )
 
     def _fall_forecast(self, event: SensorEvent, radar_matched: bool) -> RiskDecision:
+        quality_failure = self._quality_failure(event)
+        if quality_failure is not None:
+            return RiskDecision(
+                "fall_forecast", "watch", 0.0,
+                ("fall forecast evidence is insufficient for risk escalation", quality_failure), "degraded",
+                "restore reliable monitoring before acting on the forecast", self._subject(event), event.timestamp,
+            )
         raw_score = event.payload.get("score", event.payload.get("risk_score", 0.0))
         score = float(raw_score) if isinstance(raw_score, Real) and not isinstance(raw_score, bool) else 0.0
         score = max(0.0, min(1.0, score))
@@ -126,4 +140,17 @@ class DecisionEngine:
             ("sustained wellbeing trend change" if sustained else "wellbeing trend change", physiology_reason),
             "screening_only", action, self._subject(event), event.timestamp,
         )
+
+    @classmethod
+    def _quality_failure(cls, event: SensorEvent) -> str | None:
+        if not event.quality.available:
+            return f"source is unavailable: {event.quality.reason or 'no quality reason provided'}"
+        if event.quality.confidence < cls._MIN_EVENT_CONFIDENCE:
+            return (
+                f"source confidence {event.quality.confidence:.2f} is below "
+                f"{cls._MIN_EVENT_CONFIDENCE:.2f}"
+            )
+        return None
+
     _FUSION_WINDOW = timedelta(minutes=15)
+    _MIN_EVENT_CONFIDENCE = 0.5

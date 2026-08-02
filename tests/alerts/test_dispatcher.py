@@ -25,6 +25,24 @@ def test_same_fall_is_dispatched_only_once_within_cooldown(tmp_path) -> None:
     assert dispatcher.dispatch(FALL_DECISION).sent is False
 
 
+def test_active_warning_fall_can_escalate_to_critical(tmp_path) -> None:
+    dispatcher = AlertDispatcher(tmp_path / "alerts.jsonl")
+    warning = RiskDecision(
+        kind="fall_event",
+        level="warning",
+        score=0.6,
+        reasons=("unconfirmed fall", "vision stream available"),
+        quality="vision_only",
+        recommended_action="check the person",
+        subject_id="elder-1",
+        timestamp=NOW,
+    )
+
+    assert dispatcher.dispatch(warning).sent is True
+    assert dispatcher.dispatch(FALL_DECISION).sent is True
+    assert dispatcher.dispatch(FALL_DECISION).sent is False
+
+
 def test_dispatcher_writes_sent_decision_to_local_jsonl(tmp_path) -> None:
     destination = tmp_path / "alerts.jsonl"
     result = AlertDispatcher(destination).dispatch(FALL_DECISION)
