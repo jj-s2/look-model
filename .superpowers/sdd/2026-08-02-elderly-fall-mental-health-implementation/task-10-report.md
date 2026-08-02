@@ -24,6 +24,10 @@ prints `stanford-gds15-zh-2026-08-02 15`.
 
 `git diff --check` completed without output.
 
+The GDS-15 resource test also locks every ordered item ID, English prompt, Chinese prompt,
+risk answer, and all three Stanford source URLs (GDS, Chinese HTML, and Australian Chinese
+PDF) to prevent silent source-content drift.
+
 ## Concerns
 
 - This feature is offline and does not connect to devices or record audio. It is a screening
