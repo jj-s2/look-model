@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from typing import Any, Mapping
 
 import requests
@@ -14,6 +16,7 @@ TOKEN_ENDPOINT = "/api/lapp/token/get"
 DEVICE_LIST_ENDPOINT = "/api/lapp/device/list"
 LIVE_ADDRESS_ENDPOINT = "/api/lapp/v2/live/address/get"
 _TALK_MODE_BY_VALUE: dict[int, TalkMode] = {0: "none", 1: "full_duplex", 3: "half_duplex"}
+_TOKEN_SAFETY_MARGIN_MS = 60_000
 
 
 class EzvizApiError(RuntimeError):
@@ -34,14 +37,18 @@ class EzvizClient:
         app_key: str,
         app_secret: str,
         session: requests.Session | Any | None = None,
-        access_token: str | None = None,
+        access_token: AccessToken | str | None = None,
         timeout: float = 10.0,
+        now_ms: Callable[[], int] | None = None,
     ) -> None:
         self._app_key = app_key
         self._app_secret = app_secret
         self._session = requests.Session() if session is None else session
-        self._access_token = access_token
+        self._access_token = access_token if isinstance(access_token, AccessToken) else (
+            AccessToken(access_token) if access_token else None
+        )
         self._timeout = timeout
+        self._now_ms = now_ms or (lambda: int(time.time() * 1000))
 
     def __repr__(self) -> str:
         return f"EzvizClient(app_key='***', credential='***', access_token={'***' if self._access_token else None}, timeout={self._timeout!r})"
@@ -53,7 +60,7 @@ class EzvizClient:
             raise EzvizApiError("invalid_response", "missing access token", TOKEN_ENDPOINT)
         expiry = data.get("expireTime")
         access_token = AccessToken(value=token, expires_at_ms=expiry if isinstance(expiry, int) else None)
-        self._access_token = access_token.value
+        self._access_token = access_token
         return access_token
 
     def list_devices(self) -> list[EzvizDevice]:
@@ -76,7 +83,13 @@ class EzvizClient:
         return url
 
     def _require_access_token(self) -> str:
-        return self._access_token or self.get_access_token().value
+        if self._access_token is not None and self._token_is_valid(self._access_token):
+            return self._access_token.value
+        return self.get_access_token().value
+
+    def _token_is_valid(self, token: AccessToken) -> bool:
+        """Do not reuse a token whose expiry is unknown or within the safety window."""
+        return token.expires_at_ms is not None and token.expires_at_ms - self._now_ms() > _TOKEN_SAFETY_MARGIN_MS
 
     def _post(self, endpoint: str, body: dict[str, object], secrets: tuple[str, ...] = ()) -> Any:
         response = self._session.post(f"{BASE_URL}{endpoint}", data=body, timeout=self._timeout)
@@ -92,7 +105,8 @@ class EzvizClient:
         return payload.get("data")
 
     def _redact(self, message: str, *additional_secrets: str) -> str:
-        for value in (self._app_key, self._app_secret, self._access_token, *additional_secrets):
+        token_value = self._access_token.value if self._access_token else None
+        for value in (self._app_key, self._app_secret, token_value, *additional_secrets):
             if value:
                 message = message.replace(value, "***")
         return message
@@ -104,9 +118,9 @@ class EzvizClient:
         status = payload.get("status")
         return EzvizDevice(
             serial=str(payload.get("deviceSerial", "")),
-            model=_first_string(payload, "deviceName", "model", "deviceModel"),
+            model=_first_string(payload, "deviceType", "model", "deviceModel"),
             online=_online_status(status),
-            channel_count=_first_int(payload, "channelNumber", "channelNo", "channelCount"),
+            channel_count=_first_int(payload, "cameraNum", "channelNumber", "channelNo", "channelCount"),
             talk_mode=talk_mode,
             capabilities=dict(payload),
         )
@@ -131,6 +145,6 @@ def _first_int(payload: Mapping[str, Any], *keys: str) -> int | None:
 def _online_status(status: Any) -> bool | None:
     if status in (1, "1", True):
         return True
-    if status in (0, "0", False):
+    if status in (0, "0", 2, "2", False):
         return False
     return None
