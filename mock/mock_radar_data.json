@@ -1,0 +1,29 @@
+[
+  {
+    "device_id": "radar_001",
+    "heart_rate": 72,
+    "respiratory_rate": 16,
+    "in_bed": true,
+    "sleep_duration": 6.8,
+    "leave_bed_count": 3,
+    "recorded_at": "2026-07-25T06:00:00+09:00"
+  },
+  {
+    "device_id": "radar_001",
+    "heart_rate": 68,
+    "respiratory_rate": 14,
+    "in_bed": true,
+    "sleep_duration": 7.2,
+    "leave_bed_count": 2,
+    "recorded_at": "2026-07-25T07:00:00+09:00"
+  },
+  {
+    "device_id": "radar_001",
+    "heart_rate": 78,
+    "respiratory_rate": 18,
+    "in_bed": false,
+    "sleep_duration": 0,
+    "leave_bed_count": 0,
+    "recorded_at": "2026-07-25T10:00:00+09:00"
+  }
+]

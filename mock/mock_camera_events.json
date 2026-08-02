@@ -1,0 +1,32 @@
+[
+  {
+    "device_id": "camera_001",
+    "person_id": "track_01",
+    "timestamp": "2026-07-25T10:30:00+09:00",
+    "event_type": "fall_risk",
+    "risk_score": 0.82,
+    "risk_level": "HIGH",
+    "status": "walking_unstable",
+    "reasons": ["身体左右摆动增加", "行走速度下降", "步幅不稳定"]
+  },
+  {
+    "device_id": "camera_001",
+    "person_id": "track_01",
+    "timestamp": "2026-07-25T10:35:00+09:00",
+    "event_type": "fall_risk",
+    "risk_score": 0.45,
+    "risk_level": "MEDIUM",
+    "status": "sitting",
+    "reasons": ["从站立转为坐姿", "动作缓慢"]
+  },
+  {
+    "device_id": "camera_001",
+    "person_id": "track_01",
+    "timestamp": "2026-07-25T10:40:00+09:00",
+    "event_type": "fall_risk",
+    "risk_score": 0.15,
+    "risk_level": "LOW",
+    "status": "standing_stable",
+    "reasons": []
+  }
+]
