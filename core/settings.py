@@ -45,7 +45,14 @@ class Settings:
             "ezviz_app_secret",
             "ezviz_device_serial",
             "ezviz_device_code",
+            "ezviz_stream_url",
+            "sdnl1_data_url",
         ):
             if data[key]:
                 data[key] = "***"
         return data
+
+    @property
+    def sdnl1_status(self) -> str:
+        """Return an explicit availability state for SDNL1 data consumers."""
+        return "available" if self.sdnl1_data_url else "unavailable"
