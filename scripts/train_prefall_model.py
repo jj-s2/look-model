@@ -13,6 +13,33 @@ from risk.prefall_evaluation import evaluate_subject_wise, should_promote
 from risk.prefall_model import PrefallModel
 
 
+class NamedRows:
+    """Minimal NumPy-compatible matrix retaining a strict feature schema."""
+
+    def __init__(self, rows, columns):
+        self._rows = [list(row) for row in rows]
+        self.columns = tuple(columns)
+
+    def __len__(self):
+        return len(self._rows)
+
+    def __getitem__(self, index):
+        return self._rows[index]
+
+    def __iter__(self):
+        return iter(self._rows)
+
+    def __array__(self, dtype=None):
+        try:
+            import numpy as np
+        except ImportError as error:
+            raise RuntimeError("NumPy is required for synthetic pre-fall smoke training.") from error
+        return np.asarray(self._rows, dtype=dtype)
+
+    def take_rows(self, indices):
+        return NamedRows([self._rows[index] for index in indices], self.columns)
+
+
 def _pandas():
     try:
         import pandas as pd
@@ -22,15 +49,15 @@ def _pandas():
 
 
 def _synthetic_data():
-    pd = _pandas()
-    rows = []
+    features, labels, subjects = [], [], []
     for subject in range(5):
         for observation in range(12):
             label = int(observation >= 8)
-            rows.append({"subject_id": f"synthetic-{subject}", "label": label,
-                         "sway": 0.10 + label * 0.60 + subject * 0.002,
-                         "step_width": 0.20 + label * 0.35 + observation * 0.001})
-    return pd.DataFrame(rows)
+            subjects.append(f"synthetic-{subject}")
+            labels.append(label)
+            features.append([0.10 + label * 0.60 + subject * 0.002,
+                             0.20 + label * 0.35 + observation * 0.001])
+    return NamedRows(features, ("sway", "step_width")), labels, subjects
 
 
 def main() -> int:
@@ -45,14 +72,16 @@ def main() -> int:
     args = parser.parse_args()
     if bool(args.input_csv) == bool(args.synthetic_smoke_test):
         parser.error("provide exactly one of --input-csv or --synthetic-smoke-test")
-    pd = _pandas()
-    data = _synthetic_data() if args.synthetic_smoke_test else pd.read_csv(args.input_csv)
-    required = {args.label_column, args.subject_column}
-    missing = required.difference(data.columns)
-    if missing:
-        parser.error(f"input is missing required columns: {sorted(missing)}")
-    features = data.drop(columns=[args.label_column, args.subject_column])
-    labels, subject_ids = data[args.label_column], data[args.subject_column]
+    if args.synthetic_smoke_test:
+        features, labels, subject_ids = _synthetic_data()
+    else:
+        data = _pandas().read_csv(args.input_csv)
+        required = {args.label_column, args.subject_column}
+        missing = required.difference(data.columns)
+        if missing:
+            parser.error(f"input is missing required columns: {sorted(missing)}")
+        features = data.drop(columns=[args.label_column, args.subject_column])
+        labels, subject_ids = data[args.label_column], data[args.subject_column]
     report = evaluate_subject_wise(features, labels, subject_ids, threshold=args.threshold,
                                    random_seed=args.random_seed)
     baseline = {"f1": 0.90, "recall": 0.88}

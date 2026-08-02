@@ -91,6 +91,8 @@ def _take_rows(values: Any, indices: Iterable[int]) -> Any:
     index_list = list(indices)
     if hasattr(values, "iloc"):
         return values.iloc[index_list]
+    if hasattr(values, "take_rows"):
+        return values.take_rows(index_list)
     return [values[index] for index in index_list]
 
 
