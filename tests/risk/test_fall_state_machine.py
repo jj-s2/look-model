@@ -90,15 +90,109 @@ def test_recovery_rearms_machine_for_a_later_fall():
         obs(0, p=0.8, angle=45, speed=1.1, ground=0.3),
         obs(1, p=0.9, angle=85, speed=1.3, ground=0.8),
         obs(2, p=0.9, angle=86, ground=0.9),
+        obs(3, p=0.9, angle=86, ground=0.9),
+        obs(4, p=0.9, angle=86, ground=0.9),
     ]
-    recovery = [obs(3, p=0.1, angle=10, ground=0.1), obs(4, p=0.1, angle=10, ground=0.1)]
+    recovery = [obs(5, p=0.1, angle=10, ground=0.1), obs(6, p=0.1, angle=10, ground=0.1)]
     second_fall = [
-        obs(5, p=0.8, angle=45, speed=1.1, ground=0.3),
-        obs(6, p=0.9, angle=85, speed=1.3, ground=0.8),
-        obs(7, p=0.9, angle=86, ground=0.9),
+        obs(7, p=0.8, angle=45, speed=1.1, ground=0.3),
+        obs(8, p=0.9, angle=85, speed=1.3, ground=0.8),
+        obs(9, p=0.9, angle=86, ground=0.9),
+        obs(10, p=0.9, angle=86, ground=0.9),
+        obs(11, p=0.9, angle=86, ground=0.9),
     ]
 
     decisions = [machine.update(item) for item in first_fall + recovery + second_fall]
 
-    assert decisions[4].state == "recovered"
+    assert decisions[6].state == "recovered"
     assert sum(item.confirmed_fall for item in decisions) == 2
+
+
+def test_invalid_observations_degrade_instead_of_raising():
+    """Removing update-boundary validation would let upstream malformed data crash monitoring."""
+    machine = make_machine()
+    base = {
+        "timestamp": 0,
+        "fall_probability": 0.0,
+        "gait_risk": 0.0,
+        "torso_angle_deg": 0.0,
+        "vertical_speed": 0.0,
+        "ground_ratio": 0.0,
+        "keypoint_quality": 1.0,
+    }
+
+    def unchecked(**overrides: object) -> FallObservation:
+        malformed = object.__new__(FallObservation)
+        for name, value in (base | overrides).items():
+            object.__setattr__(malformed, name, value)
+        return malformed
+
+    decisions = [
+        machine.update(None),
+        machine.update({}),
+        machine.update(unchecked(fall_probability=float("nan"))),
+        machine.update(unchecked(fall_probability=1.01)),
+        machine.update(unchecked(gait_risk="high")),
+    ]
+
+    assert all(item.data_quality == "degraded" for item in decisions)
+    assert all(item.confirmed_fall is False for item in decisions)
+    assert all("invalid_observation" in item.reasons for item in decisions)
+
+
+def test_low_quality_interrupts_unconfirmed_descent_before_ground_evidence():
+    """Removing state reset would reuse descent evidence across a quality outage."""
+    machine = make_machine()
+    sequence = [
+        obs(0, p=0.8, angle=45, speed=1.1, ground=0.3),
+        obs(1, p=0.9, angle=85, speed=1.3, ground=0.8),
+        obs(2, p=0.9, angle=85, ground=0.9, quality=0.1),
+        obs(3, p=0.9, angle=85, ground=0.9),
+        obs(4, p=0.9, angle=85, ground=0.9),
+        obs(5, p=0.9, angle=85, ground=0.9),
+    ]
+
+    decisions = [machine.update(item) for item in sequence]
+
+    assert decisions[2].state == "normal"
+    assert not any(item.confirmed_fall for item in decisions)
+
+
+def test_ground_persistence_starts_after_entering_on_ground():
+    """Counting ground frames during descent would confirm one observation too early."""
+    machine = make_machine()
+    sequence = [
+        obs(0, p=0.8, angle=45, speed=1.1, ground=0.3),
+        obs(1, p=0.9, angle=85, speed=1.3, ground=0.8),
+        obs(2, p=0.9, angle=85, ground=0.9),
+        obs(3, p=0.9, angle=85, ground=0.9),
+        obs(4, p=0.9, angle=85, ground=0.9),
+    ]
+
+    decisions = [machine.update(item) for item in sequence]
+
+    assert decisions[2].state == "on_ground"
+    assert decisions[2].evidence["ground_frames"] == 0
+    assert decisions[3].confirmed_fall is False
+    assert decisions[4].confirmed_fall is True
+
+
+def test_ground_posture_without_prior_descent_never_confirms():
+    """Removing the ordered descent transition would alert on a person already lying down."""
+    machine = make_machine()
+
+    decisions = [machine.update(obs(t, p=0.9, angle=85, ground=0.9)) for t in range(5)]
+
+    assert not any(item.confirmed_fall for item in decisions)
+    assert all(item.state != "on_ground" for item in decisions)
+
+
+def test_default_threshold_requires_consecutive_high_risk_observations():
+    """Reducing the default hysteresis would enter unstable state after one noisy sample."""
+    machine = FallStateMachine()
+
+    first = machine.update(obs(0, p=0.8, angle=45))
+    second = machine.update(obs(1, p=0.8, angle=45))
+
+    assert first.state == "normal"
+    assert second.state == "unstable"

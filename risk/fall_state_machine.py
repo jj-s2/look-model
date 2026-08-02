@@ -7,6 +7,7 @@ show recovery, preventing repeated alerts for the same incident.
 """
 
 from dataclasses import dataclass, field
+from math import isfinite
 from numbers import Real
 from typing import Literal
 
@@ -82,11 +83,16 @@ class FallObservation:
     def __post_init__(self) -> None:
         for name in ("fall_probability", "gait_risk", "ground_ratio", "keypoint_quality"):
             value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, Real) or not 0.0 <= value <= 1.0:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not isfinite(value)
+                or not 0.0 <= value <= 1.0
+            ):
                 raise ValueError(f"{name} must be in [0, 1]")
         for name in ("torso_angle_deg", "vertical_speed"):
             value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, Real):
+            if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value):
                 raise ValueError(f"{name} must be a number")
 
 
@@ -117,16 +123,17 @@ class FallStateMachine:
     def state(self) -> FallState:
         return self._state
 
-    def update(self, observation: FallObservation) -> FallDecision:
+    def update(self, observation: object) -> FallDecision:
         """Consume one observation and return its state, reason codes, and evidence."""
+        try:
+            if not isinstance(observation, FallObservation):
+                raise ValueError("observation must be a FallObservation")
+            observation.__post_init__()
+        except (AttributeError, TypeError, ValueError):
+            return self._degraded_decision("invalid_observation", None)
+
         if observation.keypoint_quality < self.thresholds.keypoint_quality_min:
-            self._clear_evidence()
-            return self._decision(
-                confirmed_fall=False,
-                data_quality="degraded",
-                reasons=("low_keypoint_quality",),
-                observation=observation,
-            )
+            return self._degraded_decision("low_keypoint_quality", observation)
 
         unstable = self._is_unstable(observation)
         descending = self._is_descending(observation, unstable)
@@ -134,7 +141,6 @@ class FallStateMachine:
         recovered = self._is_recovered(observation)
         self._unstable_frames = self._next_count(unstable, self._unstable_frames)
         self._descending_frames = self._next_count(descending, self._descending_frames)
-        self._ground_frames = self._next_count(on_ground, self._ground_frames)
         self._recovery_frames = self._next_count(recovered, self._recovery_frames)
         reasons: list[str] = []
         confirmed_fall = False
@@ -156,17 +162,19 @@ class FallStateMachine:
         elif self._state == "descending":
             if on_ground:
                 self._state = "on_ground"
+                self._ground_frames = 0
                 reasons.append("ground_posture")
             elif not unstable:
                 self._state = "normal"
                 reasons.append("descent_interrupted")
         elif self._state == "on_ground":
+            self._ground_frames = self._next_count(on_ground, self._ground_frames)
             if recovered and self._recovery_frames >= self.thresholds.recovery_evidence_frames:
                 self._state = "recovered"
                 self._event_latched = False
                 reasons.append("recovery_persistence")
 
-        if self._state == "on_ground" and on_ground:
+        if self._state == "on_ground" and on_ground and self._ground_frames > 0:
             reasons.append("ground_persistence")
             if self._ground_frames >= self.thresholds.ground_persistence_frames and not self._event_latched:
                 confirmed_fall = True
@@ -220,13 +228,26 @@ class FallStateMachine:
         self._ground_frames = 0
         self._recovery_frames = 0
 
+    def _degraded_decision(
+        self, reason: str, observation: FallObservation | None
+    ) -> FallDecision:
+        self._clear_evidence()
+        if not self._event_latched and self._state in ("unstable", "descending", "recovered"):
+            self._state = "normal"
+        return self._decision(
+            confirmed_fall=False,
+            data_quality="degraded",
+            reasons=(reason,),
+            observation=observation,
+        )
+
     def _decision(
         self,
         *,
         confirmed_fall: bool,
         data_quality: Literal["usable", "degraded"],
         reasons: tuple[str, ...],
-        observation: FallObservation,
+        observation: FallObservation | None,
     ) -> FallDecision:
         return FallDecision(
             state=self._state,
@@ -234,13 +255,13 @@ class FallStateMachine:
             data_quality=data_quality,
             reasons=reasons,
             evidence={
-                "timestamp": observation.timestamp,
-                "fall_probability": observation.fall_probability,
-                "gait_risk": observation.gait_risk,
-                "torso_angle_deg": observation.torso_angle_deg,
-                "vertical_speed": observation.vertical_speed,
-                "ground_ratio": observation.ground_ratio,
-                "keypoint_quality": observation.keypoint_quality,
+                "timestamp": observation.timestamp if observation is not None else None,
+                "fall_probability": observation.fall_probability if observation is not None else None,
+                "gait_risk": observation.gait_risk if observation is not None else None,
+                "torso_angle_deg": observation.torso_angle_deg if observation is not None else None,
+                "vertical_speed": observation.vertical_speed if observation is not None else None,
+                "ground_ratio": observation.ground_ratio if observation is not None else None,
+                "keypoint_quality": observation.keypoint_quality if observation is not None else None,
                 "unstable_frames": self._unstable_frames,
                 "descending_frames": self._descending_frames,
                 "ground_frames": self._ground_frames,
