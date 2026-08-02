@@ -158,6 +158,26 @@ def test_low_quality_interrupts_unconfirmed_descent_before_ground_evidence():
     assert not any(item.confirmed_fall for item in decisions)
 
 
+def test_low_quality_interrupts_unconfirmed_on_ground_before_ground_evidence():
+    """Keeping an unconfirmed on-ground state would reuse evidence after a quality outage."""
+    machine = make_machine()
+    sequence = [
+        obs(0, p=0.8, angle=45, speed=1.1, ground=0.3),
+        obs(1, p=0.9, angle=85, speed=1.3, ground=0.8),
+        obs(2, p=0.9, angle=85, ground=0.9),
+        obs(3, p=0.9, angle=85, ground=0.9, quality=0.1),
+        obs(4, p=0.9, angle=85, ground=0.9),
+        obs(5, p=0.9, angle=85, ground=0.9),
+        obs(6, p=0.9, angle=85, ground=0.9),
+    ]
+
+    decisions = [machine.update(item) for item in sequence]
+
+    assert decisions[2].state == "on_ground"
+    assert decisions[3].state == "normal"
+    assert not any(item.confirmed_fall for item in decisions)
+
+
 def test_ground_persistence_starts_after_entering_on_ground():
     """Counting ground frames during descent would confirm one observation too early."""
     machine = make_machine()

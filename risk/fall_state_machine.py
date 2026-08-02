@@ -232,7 +232,12 @@ class FallStateMachine:
         self, reason: str, observation: FallObservation | None
     ) -> FallDecision:
         self._clear_evidence()
-        if not self._event_latched and self._state in ("unstable", "descending", "recovered"):
+        if not self._event_latched and self._state in (
+            "unstable",
+            "descending",
+            "on_ground",
+            "recovered",
+        ):
             self._state = "normal"
         return self._decision(
             confirmed_fall=False,
