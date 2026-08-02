@@ -1,6 +1,6 @@
 # Look Model
 
-面向老年人居家场景的多模态 AI 研究原型。目前重点包括视频人体姿态分析、跌倒/日常活动识别、步态稳定性评估，以及萤石设备输入适配。
+面向老年人居家场景的多模态 AI 研究与比赛原型。它提供跌倒风险、跌倒事件和身心状态变化的分层提示；不是医疗器械，心理模块只用于筛查、变化提示和建议人工关注，**不作诊断**。
 
 ## 主要模块
 
@@ -12,6 +12,28 @@
 - `configs/`：OpenMMLab、PoseC3D 等实验配置。
 - `tests/`：基础自动化测试。
 - `docs/`：方案、进度和兼容性文档。
+
+## 最短验证路径
+
+```powershell
+conda env create -f environment.yml
+conda activate elderly-ai
+Copy-Item .env.example .env
+python scripts/probe_ezviz_devices.py --offline-fixture --write-report docs/device-capability-report.md
+python -m pytest tests/integration/test_monitoring_flow.py -q
+python scripts/run_pipeline.py --input <local-video.mp4>
+```
+
+`--offline-fixture` 不访问网络，故意显示 `unavailable`；它不是 C6c、直播、对讲或 SDNL1 的真实验证。真实设备接通后才可运行不带该参数的探测，缺失能力仍必须显示 `unavailable`，不可用演示数据替代。
+
+性能与门槛（任一失败即非零退出）：
+
+```powershell
+python scripts/benchmark_live_pipeline.py --input <controlled-local-replay.mp4> --duration-seconds 300 --output outputs/benchmark.json
+python scripts/generate_evaluation_report.py --metrics experiments/outputs/losocv/summary.json outputs/benchmark.json --output docs/evaluation-report.md
+```
+
+完整部署、设备能力、评估边界和比赛演示步骤见 [部署说明](docs/deployment.md)、[设备能力报告](docs/device-capability-report.md)、[评估报告](docs/evaluation-report.md) 和 [演示脚本](docs/demo-script.md)。
 
 ## 环境
 
