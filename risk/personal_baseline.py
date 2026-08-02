@@ -13,6 +13,7 @@ class BaselineScore:
     baseline_ready: bool
     score: float
     deviations: Mapping[str, float]
+    unready_features: tuple[str, ...] = ()
 
 
 class RobustPersonalBaseline:
@@ -29,11 +30,16 @@ class RobustPersonalBaseline:
 
     @property
     def ready(self) -> bool:
-        return self.valid_day_count >= self.min_valid_days
+        counts = self.feature_day_counts
+        return bool(counts) and all(count >= self.min_valid_days for count in counts.values())
 
     @property
     def valid_day_count(self) -> int:
         return len(self._days)
+
+    @property
+    def feature_day_counts(self) -> dict[str, int]:
+        return {name: len(values) for name, values in self._values_by_feature().items()}
 
     @property
     def reference(self) -> dict[str, float]:
@@ -53,14 +59,19 @@ class RobustPersonalBaseline:
             self._days[day] = clean
 
     def score(self, features: Mapping[str, float]) -> BaselineScore:
-        if not self.ready:
-            return BaselineScore(baseline_ready=False, score=0.0, deviations={})
         reference, spread, deviations = self.reference, self.iqr, {}
+        unready = []
         for name, value in features.items():
-            if name in reference and isinstance(value, (int, float)) and isfinite(float(value)):
+            if not isinstance(value, (int, float)) or not isfinite(float(value)):
+                continue
+            if self.feature_day_counts.get(name, 0) < self.min_valid_days:
+                unready.append(str(name))
+            elif name in reference:
                 deviations[name] = abs(float(value) - reference[name]) / spread[name]
+        if unready or not deviations:
+            return BaselineScore(False, 0.0, deviations, tuple(unready))
         average = sum(deviations.values()) / len(deviations) if deviations else 0.0
-        return BaselineScore(True, min(1.0, average / 3.0), deviations)
+        return BaselineScore(True, min(1.0, average / 3.0), deviations, ())
 
     def _values_by_feature(self) -> dict[str, list[float]]:
         grouped: dict[str, list[float]] = {}

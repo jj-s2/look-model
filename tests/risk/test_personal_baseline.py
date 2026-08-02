@@ -44,3 +44,18 @@ def test_score_uses_iqr_floor_for_constant_personal_history():
     assert score.baseline_ready is True
     assert score.deviations["sway"] == pytest.approx(1.0)
     assert 0.0 <= score.score <= 1.0
+
+
+def test_score_marks_a_feature_unready_until_it_has_seven_valid_days():
+    baseline = RobustPersonalBaseline(min_valid_days=7)
+    for day in DAYS[:7]:
+        baseline.add_day(day, {"sway": 0.2}, valid=True)
+    baseline.add_day(DAYS[7], {"step_width": 0.4}, valid=True)
+
+    score = baseline.score({"sway": 0.3, "step_width": 0.5})
+
+    assert baseline.ready is False
+    assert score.baseline_ready is False
+    assert score.unready_features == ("step_width",)
+    assert "step_width" not in score.deviations
+    assert score.score == 0.0

@@ -6,7 +6,7 @@ the risk layer can run on an edge device before NumPy/Torch are installed.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from math import atan2, degrees, hypot, isfinite, sqrt
+from math import atan2, degrees, exp, hypot, isfinite, sqrt
 from statistics import median
 from typing import Any, Iterable, Sequence
 
@@ -96,38 +96,91 @@ class GaitStabilityAnalyzer:
         """Legacy dictionary API retained for existing pre-fall callers."""
         features = self.extract_features(
             {"keypoints": keypoints, "keypoint_scores": keypoint_scores}, None)
-        # These names are kept to avoid breaking the Task 6/pre-fall pipeline.
-        risk_score = min(1.0, max(0.0, (
-            features.sway + features.step_variability + features.torso_angle_change / 30.0
-            + (1.0 - features.left_right_symmetry) + (1.0 - features.keypoint_quality)
-        ) / 5.0))
-        return {
-            "activity_level": features.step_width,
-            "activity_trend": 0.0,
-            "com_height": 0.0,
-            "com_vertical_drop": 0.0,
-            "com_vel_y": 0.0,
-            "activity_burst": 0.0,
-            "com_sway": features.sway,
-            "body_lean_angle": 0.0,
-            "body_lean_var": features.torso_angle_change,
-            "lean_trend": 0.0,
-            "gait_jitter": features.step_variability,
-            "confidence": features.keypoint_quality,
-            "risk_score": risk_score,
-            **asdict(features),
-        }
+        points, _ = self._point_frames(self._frames(keypoints))
+        legacy = self._legacy_measurements(points)
+        legacy["confidence"] = features.keypoint_quality
+        legacy["risk_score"] = self._legacy_risk(legacy)
+        return {**legacy, **asdict(features)}
 
     def analyze_windowed(self, keypoints: Any, keypoint_scores: Any = None, stride: int | None = None) -> list[dict[str, float]]:
         frames = self._frames(keypoints)
+        score_frames = self._score_frames(keypoint_scores)
         step = stride or max(self.window // 2, 1)
         results = []
         for start in range(0, max(len(frames) - self.window + 1, 1), step):
             segment = frames[start:start + self.window]
-            result = self.analyze(segment, None)
+            segment_scores = score_frames[start:start + len(segment)] if score_frames else None
+            result = self.analyze(segment, segment_scores)
             result.update(frame_start=start, frame_end=start + len(segment))
             results.append(result)
         return results
+
+    def _legacy_measurements(self, points: list[list[tuple[float, float] | None]]) -> dict[str, float]:
+        """Original pixel-domain pre-fall measurements for the legacy API."""
+        centers = [self._midpoint(frame[L_HIP], frame[R_HIP]) for frame in points]
+        center_x = [center[0] for center in centers if center]
+        center_y = [center[1] for center in centers if center]
+        activity = []
+        for previous, current in zip(points, points[1:]):
+            displacements = [hypot(current[index][0] - previous[index][0],
+                                   current[index][1] - previous[index][1])
+                             for index in range(17)
+                             if previous[index] is not None and current[index] is not None]
+            if displacements:
+                activity.append(sum(displacements) / len(displacements))
+        half = len(center_y) // 2
+        vertical_drop = (sum(center_y[half:]) / len(center_y[half:]) -
+                         sum(center_y[:half]) / len(center_y[:half])) if half else 0.0
+        angles = []
+        for frame in points:
+            shoulder = self._midpoint(frame[L_SHOULDER], frame[R_SHOULDER])
+            hip = self._midpoint(frame[L_HIP], frame[R_HIP])
+            if shoulder and hip:
+                angles.append(degrees(atan2(abs(shoulder[0] - hip[0]),
+                                           max(abs(shoulder[1] - hip[1]), _EPSILON))))
+        ankle_speeds = []
+        for previous, current in zip(points, points[1:]):
+            for index in (L_ANKLE, R_ANKLE):
+                if previous[index] and current[index]:
+                    ankle_speeds.append(hypot(current[index][0] - previous[index][0],
+                                               current[index][1] - previous[index][1]))
+        last_n = min(max(int(self.fps), 3), len(points))
+        com_vel_y = (sum(current - previous for previous, current in
+                         zip(center_y[-last_n:], center_y[-last_n + 1:])) /
+                     max(last_n - 1, 1)) if len(center_y) >= last_n else 0.0
+        if len(activity) > last_n and sum(activity[:-last_n]) / len(activity[:-last_n]) > _EPSILON:
+            activity_burst = ((sum(activity[-last_n:]) / len(activity[-last_n:])) /
+                              (sum(activity[:-last_n]) / len(activity[:-last_n])))
+        else:
+            activity_burst = sum(activity[-last_n:]) / len(activity[-last_n:]) if activity else 0.0
+        activity_half = len(activity) // 2
+        activity_trend = ((sum(activity[activity_half:]) / len(activity[activity_half:])) -
+                          (sum(activity[:activity_half]) / len(activity[:activity_half]))) if activity_half else 0.0
+        lean_trend = ((sum(angles[-last_n:]) / len(angles[-last_n:])) -
+                      (sum(angles[:-last_n]) / len(angles[:-last_n]))) if len(angles) > last_n else 0.0
+        return {
+            "activity_level": sum(activity) / len(activity) if activity else 0.0,
+            "activity_trend": activity_trend,
+            "com_height": sum(center_y) / len(center_y) if center_y else 0.0,
+            "com_vertical_drop": vertical_drop,
+            "com_vel_y": com_vel_y,
+            "activity_burst": activity_burst,
+            "com_sway": self._std(center_x),
+            "body_lean_angle": sum(angles) / len(angles) if angles else 0.0,
+            "body_lean_var": self._std(angles) ** 2,
+            "lean_trend": lean_trend,
+            "gait_jitter": self._std(ankle_speeds) ** 2,
+        }
+
+    @staticmethod
+    def _legacy_risk(metrics: dict[str, float]) -> float:
+        def contribution(value: float, threshold: float, scale: float) -> float:
+            return 1.0 / (1.0 + exp(-(value - threshold) / scale))
+        risk = (0.40 * contribution(metrics["activity_burst"], 1.5, 0.8) +
+                0.35 * contribution(metrics["lean_trend"], 3.0, 3.0) +
+                0.15 * contribution(metrics["com_vel_y"], 1.0, 0.8) +
+                0.10 * contribution(metrics["com_vertical_drop"], 15.0, 8.0))
+        return min(1.0, max(0.0, risk))
 
     @staticmethod
     def _to_list(value: Any) -> Any:
@@ -146,6 +199,18 @@ class GaitStabilityAnalyzer:
         if self._is_point(value[0]):
             return [value]
         if isinstance(value[0], (list, tuple)) and value[0] and self._is_point(value[0][0]):
+            return list(value)
+        if isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (list, tuple)):
+            return list(value[0])
+        return []
+
+    def _score_frames(self, scores: Any) -> list[Any]:
+        value = self._to_list(scores)
+        if not isinstance(value, (list, tuple)) or not value:
+            return []
+        if isinstance(value[0], (int, float)):
+            return [value]
+        if isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (int, float)):
             return list(value)
         if isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (list, tuple)):
             return list(value[0])

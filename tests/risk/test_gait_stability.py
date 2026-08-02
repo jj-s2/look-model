@@ -43,3 +43,39 @@ def test_extract_features_handles_short_or_degenerate_sequences_without_nan():
 
     assert result.keypoint_quality == 1.0
     assert all(math.isfinite(getattr(result, field)) for field in result.__dataclass_fields__)
+
+
+def test_legacy_analyze_reports_downward_motion_and_higher_risk():
+    stable = _sequence()
+    falling = _sequence()
+    for index, frame in enumerate(falling):
+        downward_shift = max(0, index - 6) * 8.0
+        for point in frame:
+            point[1] += downward_shift
+        # Increasing shoulder offset produces a real late-window lean trend.
+        frame[5][0] += max(0, index - 6) * 3.0
+        frame[6][0] += max(0, index - 6) * 3.0
+
+    analyzer = GaitStabilityAnalyzer(fps=4)
+    stable_result = analyzer.analyze(stable)
+    result = analyzer.analyze(falling)
+
+    assert result["com_vertical_drop"] > 0.0
+    assert result["com_vel_y"] > 0.0
+    assert result["activity_burst"] > 1.0
+    assert result["body_lean_angle"] > 0.0
+    assert result["lean_trend"] > 0.0
+    assert result["risk_score"] > stable_result["risk_score"]
+
+
+def test_windowed_analysis_preserves_keypoint_scores():
+    frames = _sequence()
+    scores = [[0.25] * 17 for _ in frames]
+
+    result = GaitStabilityAnalyzer(fps=4, window_sec=1).analyze_windowed(
+        frames, scores, stride=4
+    )
+
+    assert result
+    assert result[0]["confidence"] == pytest.approx(0.25)
+    assert result[0]["keypoint_quality"] == pytest.approx(0.25)
