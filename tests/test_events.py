@@ -38,3 +38,35 @@ def test_event_rejects_confidence_outside_unit_interval(confidence):
             payload={},
             quality=DataQuality(True, confidence, False),
         )
+
+
+@pytest.mark.parametrize("field", ["available", "demo"])
+def test_from_dict_rejects_non_boolean_quality_flags(field):
+    data = SensorEvent(
+        timestamp=datetime(2026, 8, 2, tzinfo=timezone.utc),
+        source=Source.VISION,
+        event_type=EventType.FALL_EVENT,
+        payload={},
+        quality=DataQuality(True, 1.0, False),
+    ).to_dict()
+    quality = dict(data["quality"])
+    quality[field] = "false"
+    data["quality"] = quality
+
+    with pytest.raises(ValueError):
+        SensorEvent.from_dict(data)
+
+
+@pytest.mark.parametrize(
+    ("source", "event_type"),
+    [("vision", EventType.FALL_EVENT), (Source.VISION, "fall_event")],
+)
+def test_event_rejects_non_enum_source_and_event_type(source, event_type):
+    with pytest.raises(ValueError, match="Source|EventType"):
+        SensorEvent(
+            timestamp=datetime(2026, 8, 2, tzinfo=timezone.utc),
+            source=source,
+            event_type=event_type,
+            payload={},
+            quality=DataQuality(True, 1.0, False),
+        )

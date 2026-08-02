@@ -40,8 +40,14 @@ class SensorEvent:
     quality: DataQuality
 
     def __post_init__(self) -> None:
+        if not isinstance(self.source, Source):
+            raise ValueError("source must be a Source")
+        if not isinstance(self.event_type, EventType):
+            raise ValueError("event_type must be an EventType")
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() is None:
             raise ValueError("timestamp must be timezone-aware")
+        if not isinstance(self.quality.available, bool) or not isinstance(self.quality.demo, bool):
+            raise ValueError("quality availability and demo flags must be boolean")
         if (
             isinstance(self.quality.confidence, bool)
             or not isinstance(self.quality.confidence, Real)
@@ -76,9 +82,9 @@ class SensorEvent:
                 event_type=EventType(str(data["event_type"])),
                 payload=dict(payload),
                 quality=DataQuality(
-                    available=bool(quality_data["available"]),
+                    available=quality_data["available"],  # type: ignore[arg-type]
                     confidence=quality_data["confidence"],  # type: ignore[arg-type]
-                    demo=bool(quality_data["demo"]),
+                    demo=quality_data["demo"],  # type: ignore[arg-type]
                     reason=quality_data.get("reason"),  # type: ignore[arg-type]
                 ),
             )
