@@ -2,12 +2,45 @@
 
 from __future__ import annotations
 
-from typing import Any
+from pathlib import Path
+from typing import Any, Mapping
 
+from mental.gds15 import GDS15
 from pipeline.live_service import LiveMonitoringService, ServiceSnapshot
 
 
 SCREENING_NOTICE = "心理健康信息仅用于风险筛查不构成诊断；GDS-15 仅可由用户主动发起。"
+GDS15_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "screening" / "gds15_zh.json"
+
+
+def load_gds15() -> GDS15:
+    """Load the reviewed local questionnaire; this never contacts its source URL."""
+    return GDS15.from_json(GDS15_CONFIG)
+
+
+def start_gds15_screening(gds: GDS15 | None = None) -> dict[str, Any]:
+    """Expose GDS-15 only after the person has actively requested screening."""
+    scale = gds or load_gds15()
+    return {
+        "active": True,
+        "questions": [
+            {"id": item.id, "question_zh": item.question_zh, "options": item.options, "risk_answer": item.risk_answer}
+            for item in scale.items
+        ],
+        "notice": SCREENING_NOTICE,
+    }
+
+
+def submit_gds15_answers(answers: Mapping[str, bool], gds: GDS15 | None = None) -> dict[str, Any]:
+    """Score a voluntarily completed GDS-15 response set without diagnostic labels."""
+    result = (gds or load_gds15()).score(answers)
+    return {
+        "active": False,
+        "score": result.score,
+        "risk_band": result.risk_band,
+        "is_diagnosis": result.is_diagnosis,
+        "notice": SCREENING_NOTICE,
+    }
 
 
 def dashboard_view_model(snapshot: ServiceSnapshot) -> dict[str, Any]:
@@ -44,6 +77,8 @@ def build_dashboard(service: LiveMonitoringService):
     except ModuleNotFoundError as error:
         raise RuntimeError("Gradio 未安装。请安装 requirements.txt 中的 gradio>=5,<7 后再启动界面。") from error
 
+    scale = load_gds15()
+
     def refresh():
         model = dashboard_view_model(service.step())
         return (
@@ -51,6 +86,20 @@ def build_dashboard(service: LiveMonitoringService):
             model["fall_trend"], model["wellbeing_changes"], model["wellbeing_trend"], model["evidence"],
             model["alert_history"], model["errors"],
         )
+
+    def begin_gds15():
+        payload = start_gds15_screening(scale)
+        return gr.update(visible=payload["active"]), "请自主完成全部 15 题后提交。" + payload["notice"]
+
+    def submit_gds15(*selected_options: str | None):
+        if len(selected_options) != len(scale.items) or any(option is None for option in selected_options):
+            return "请先完整回答 15 题。" + SCREENING_NOTICE
+        answers = {
+            item.id: selected == item.options[0]
+            for item, selected in zip(scale.items, selected_options)
+        }
+        result = submit_gds15_answers(answers, scale)
+        return f"筛查分数：{result['score']}；风险分层：{result['risk_band']}。{result['notice']}"
 
     with gr.Blocks(title="本地老人安全监测") as dashboard:
         watermark = gr.Markdown(visible=True)
@@ -66,11 +115,20 @@ def build_dashboard(service: LiveMonitoringService):
         evidence = gr.JSON(label="证据说明")
         alert_history = gr.JSON(label="告警历史")
         errors = gr.JSON(label="组件状态")
-        gr.Button("我主动发起 GDS-15 筛查", interactive=True)
+        gds_start = gr.Button("我主动发起 GDS-15 筛查", interactive=True)
+        gds_status = gr.Markdown(SCREENING_NOTICE)
+        with gr.Column(visible=False) as gds_panel:
+            gds_answers = [
+                gr.Radio(choices=list(item.options), label=item.question_zh, type="value")
+                for item in scale.items
+            ]
+            gds_submit = gr.Button("提交 GDS-15 筛查", variant="primary")
         refresh_button = gr.Button("刷新本地状态")
         refresh_button.click(
             refresh,
             outputs=[watermark, device_quality, latest_frame, fall_events, fall_trend, wellbeing_changes,
                      wellbeing_trend, evidence, alert_history, errors],
         )
+        gds_start.click(begin_gds15, outputs=[gds_panel, gds_status])
+        gds_submit.click(submit_gds15, inputs=gds_answers, outputs=gds_status)
     return dashboard

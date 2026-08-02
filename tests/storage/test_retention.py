@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import os
 
+import numpy as np
+
 from storage.clip_buffer import CircularClipBuffer
 from storage.retention import RetentionPolicy
 
@@ -29,6 +31,11 @@ def test_confirmed_clip_contains_ten_seconds_before_and_twenty_after(tmp_path) -
 
     assert clip is not None
     assert clip.exists()
+    with np.load(clip) as saved:
+        assert saved["timestamps"].tolist() == [
+            (NOW - timedelta(seconds=10)).isoformat(), NOW.isoformat(), (NOW + timedelta(seconds=20)).isoformat(),
+        ]
+        assert saved["frames"].tolist() == ["before", "event", "after"]
 
 
 def test_retention_removes_only_expired_event_clips(tmp_path) -> None:
