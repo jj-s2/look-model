@@ -28,6 +28,9 @@ The GDS-15 resource test also locks every ordered item ID, English prompt, Chine
 risk answer, and all three Stanford source URLs (GDS, Chinese HTML, and Australian Chinese
 PDF) to prevent silent source-content drift.
 
+The Chinese prompts are locked to the Simplified Chinese wording from Stanford's Australian
+Chinese PDF rather than paraphrased translations.
+
 ## Concerns
 
 - This feature is offline and does not connect to devices or record audio. It is a screening
