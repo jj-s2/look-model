@@ -3,6 +3,30 @@ import pytest
 from risk.prefall_model import PrefallModel
 
 
+class SchemaArray:
+    """Small named matrix that sklearn can consume without pandas."""
+
+    def __init__(self, rows, columns=("sway", "step_width")):
+        self.rows = [list(row) for row in rows]
+        self.columns = tuple(columns)
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __getitem__(self, index):
+        return self.rows[index]
+
+    def __iter__(self):
+        return iter(self.rows)
+
+    def __array__(self, dtype=None):
+        import numpy as np
+        return np.asarray(self.rows, dtype=dtype)
+
+    def take_rows(self, indices):
+        return SchemaArray([self.rows[index] for index in indices], self.columns)
+
+
 class Frame:
     def __init__(self, columns):
         self.columns = columns
@@ -39,3 +63,15 @@ def test_model_reports_missing_scikit_learn_only_when_training_requested(monkeyp
 
     with pytest.raises(RuntimeError, match="scikit-learn is required"):
         model.fit(Frame(["sway"]), [0, 1])
+
+
+def test_model_fits_real_sklearn_pipeline_and_returns_positive_probabilities():
+    pytest.importorskip("sklearn")
+    features = SchemaArray([[0.1, 0.2], [0.2, 0.3], [0.8, 0.7], [0.9, 0.8]])
+
+    model = PrefallModel(random_seed=7).fit(features, [0, 0, 1, 1])
+
+    probabilities = model.predict_proba(features)
+    assert probabilities.shape == (4,)
+    assert all(0.0 <= value <= 1.0 for value in probabilities)
+    assert model._estimator.named_steps["classifier"].class_weight == "balanced"

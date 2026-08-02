@@ -86,15 +86,26 @@ def main() -> int:
                                    random_seed=args.random_seed)
     baseline = {"f1": 0.90, "recall": 0.88}
     promoted = should_promote(report.metrics, baseline)
+    provenance = {
+        "synthetic": args.synthetic_smoke_test,
+        "not_for_clinical_performance": args.synthetic_smoke_test,
+        "source": "synthetic-smoke-test" if args.synthetic_smoke_test else str(args.input_csv),
+        "fixture": "deterministic-two-feature-v1" if args.synthetic_smoke_test else None,
+    }
+    # Smoke fixtures prove wiring only. They can never become a clinical model.
+    if args.synthetic_smoke_test:
+        promoted = False
     model = PrefallModel(random_seed=args.random_seed, threshold=args.threshold).fit(features, labels)
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     with (output / "prefall_model.pkl").open("wb") as stream:
         pickle.dump(model, stream)
-    metrics = {"validation": report.as_dict(), "baseline": baseline, "promoted": promoted}
+    metrics = {"validation": report.as_dict(), "baseline": baseline, "promoted": promoted,
+               **provenance}
     (output / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    card = {**model.metadata(metrics=report.metrics, promoted=promoted), **provenance}
     (output / "model_card.json").write_text(
-        json.dumps(model.metadata(metrics=report.metrics, promoted=promoted), indent=2), encoding="utf-8")
+        json.dumps(card, indent=2), encoding="utf-8")
     print(json.dumps(metrics, indent=2))
     return 0
 
