@@ -71,7 +71,14 @@ class PosePipeline:
             for detection in self._detector.detect(frame)
             if detection.label == "person" and detection.score >= self._person_threshold
         ]
-        inference = self._pose_estimator.estimate(frame, boxes)
+        # MMPose can treat an empty box array as an instruction to infer the
+        # whole frame.  Short-circuiting prevents a chair-only frame from
+        # becoming a false person pose and avoids needless model work.
+        inference = (
+            PoseInferenceOutput(keypoints=[], keypoint_scores=[], payload={})
+            if not boxes
+            else self._pose_estimator.estimate(frame, boxes)
+        )
         return PoseFrameResult(
             frame_index=self._frame_index,
             timestamp=timestamp,

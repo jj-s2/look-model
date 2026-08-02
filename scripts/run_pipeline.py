@@ -105,14 +105,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         input_meta = adapter.meta()
         for frame in adapter:
             result = pipeline.process(frame, datetime.now(timezone.utc))
-            samples = result.payload
-            instances = samples.get("pred_instances", None)
-            predictions.append(dict(frame_id=result.frame_index, instances=split_instances(instances)))
             image = mmcv.bgr2rgb(frame)
-            visualizer.add_datasample("result", image, data_sample=samples, draw_gt=False,
-                draw_heatmap=False, draw_bbox=False, show_kpt_idx=False,
-                skeleton_style="mmpose", show=False, wait_time=0, kpt_thr=0.3)
-            image = visualizer.get_image()
+            if result.bboxes:
+                samples = result.payload
+                instances = samples.get("pred_instances", None)
+                predictions.append(dict(frame_id=result.frame_index, instances=split_instances(instances)))
+                visualizer.add_datasample("result", image, data_sample=samples, draw_gt=False,
+                    draw_heatmap=False, draw_bbox=False, show_kpt_idx=False,
+                    skeleton_style="mmpose", show=False, wait_time=0, kpt_thr=0.3)
+                image = visualizer.get_image()
+            else:
+                predictions.append(dict(frame_id=result.frame_index, instances=[]))
             if writer is None:
                 writer = cv2.VideoWriter(output_video, cv2.VideoWriter_fourcc(*"mp4v"), adapter.fps or 25, (image.shape[1], image.shape[0]))
             writer.write(mmcv.rgb2bgr(image))

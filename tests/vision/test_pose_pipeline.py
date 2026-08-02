@@ -1,4 +1,9 @@
 from datetime import datetime, timezone
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
 
 from vision.pose_buffer import PoseSequenceBuffer
 from vision.pose_pipeline import Detection, PoseFrameResult, PoseInferenceOutput, PosePipeline
@@ -59,3 +64,66 @@ def test_sequence_buffer_emits_fixed_length_overlapping_window():
     windows = [window for window in emitted if window is not None]
     assert [len(window) for window in windows] == [4, 4]
     assert [item.frame_index for item in windows[1]] == [2, 3, 4, 5]
+
+
+def test_pipeline_does_not_call_pose_estimator_without_person_boxes():
+    """An empty person set must not become an accidental full-frame pose run."""
+    pose = FakePoseEstimator()
+
+    result = PosePipeline(
+        FakeDetector([Detection("chair", 0.9, [1, 2, 30, 40])]), pose
+    ).process(FRAME, NOW)
+
+    assert pose.last_boxes is None
+    assert result.bboxes == []
+    assert result.keypoints == []
+    assert result.keypoint_scores == []
+    assert result.payload == {}
+
+
+def test_sequence_buffer_stride_one_keeps_exact_overlap():
+    buffer = PoseSequenceBuffer(window_size=3, stride=1)
+
+    windows = [window for window in (buffer.append(frame(i)) for i in range(5)) if window]
+
+    assert [[item.frame_index for item in window] for window in windows] == [
+        [0, 1, 2], [1, 2, 3], [2, 3, 4],
+    ]
+
+
+def test_sequence_buffer_full_stride_has_no_overlap():
+    buffer = PoseSequenceBuffer(window_size=3, stride=3)
+
+    windows = [window for window in (buffer.append(frame(i)) for i in range(6)) if window]
+
+    assert [[item.frame_index for item in window] for window in windows] == [
+        [0, 1, 2], [3, 4, 5],
+    ]
+
+
+@pytest.mark.parametrize("window_size,stride", [(0, 1), (3, 0), (3, 4)])
+def test_sequence_buffer_rejects_invalid_window_or_stride(window_size, stride):
+    with pytest.raises(ValueError):
+        PoseSequenceBuffer(window_size=window_size, stride=stride)
+
+
+def test_pose_modules_import_when_numpy_is_unavailable():
+    """Importing testable contracts cannot require production ML dependencies."""
+    code = """
+import builtins
+original_import = builtins.__import__
+def no_numpy(name, *args, **kwargs):
+    if name == 'numpy' or name.startswith('numpy.'):
+        raise ModuleNotFoundError('numpy intentionally unavailable')
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = no_numpy
+import vision.pose_pipeline
+import vision.pose_buffer
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=Path(__file__).resolve().parents[2],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
