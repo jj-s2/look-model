@@ -1,0 +1,143 @@
+# =============================================================================
+# .gitignore - 跌倒检测 AI 算法项目
+# 原则：原始视频、压缩包、模型权重、关键点缓存一律不入库
+# =============================================================================
+
+# ---------------- Python ----------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ---------------- 虚拟环境 ----------------
+venv/
+env/
+ENV/
+.venv/
+.env
+
+# ---------------- Conda（项目内隔离安装）----------------
+.conda/
+# Miniconda 安装器
+datasets/raw/_miniconda_installer.exe
+
+# ---------------- 测试与覆盖率 ----------------
+.pytest_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ---------------- IDE ----------------
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+
+# ---------------- 操作系统 ----------------
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# ---------------- 数据集（原始与压缩包不入库） ----------------
+datasets/raw/**
+datasets/processed/**/*.npz
+datasets/processed/**/*.npy
+datasets/annotations/**/*.json
+!datasets/annotations/.gitkeep
+!datasets/raw/.gitkeep
+!datasets/processed/.gitkeep
+!datasets/splits/.gitkeep
+!datasets/README.md
+!datasets/manifest.json
+
+# ---------------- 模型权重（不入库，仅保留下载脚本） ----------------
+models/**/*.pth
+models/**/*.onnx
+models/**/*.engine
+models/**/*.pt
+models/**/*.bin
+models/**/*.safetensors
+!models/**/.gitkeep
+!models/**/README.md
+
+# 训练检查点可能出现在 experiments/work_dirs 等目录
+**/*.pth
+**/*.pt
+**/*.onnx
+**/*.engine
+**/*.safetensors
+work_dirs/
+
+# 序列化数据集与训练中间文件
+datasets/**/*.pkl
+datasets/**/*.pickle
+experiments/outputs/**/*.pkl
+experiments/outputs/**/*.pickle
+experiments/outputs/**/*.log
+experiments/outputs/**/*.err
+experiments/outputs/**/*.mp4
+
+# ---------------- 关键点缓存 ----------------
+**/keypoints_cache/
+**/*.kp_cache.npz
+**/keypoints/**/*.npz
+
+# ---------------- 上游仓库克隆 ----------------
+third_party/*/
+!third_party/.gitkeep
+!third_party/README.md
+
+# ---------------- 实验产物（大文件） ----------------
+experiments/logs/**/*.log
+experiments/logs/**/*.txt
+experiments/metrics/**/*.json
+experiments/figures/**/*.png
+experiments/figures/**/*.jpg
+experiments/figures/**/*.mp4
+!experiments/**/.gitkeep
+!experiments/**/README.md
+
+# ---------------- Demo 与可视化输出 ----------------
+demo/output/
+demo/**/*.mp4
+demo/**/*.avi
+demo/**/*.mov
+!demo/.gitkeep
+
+# ---------------- 临时文件 ----------------
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# ---------------- 萤石与雷达凭据 ----------------
+**/ezviz_credentials.json
+**/secret*.json
+**/api_keys.*
