@@ -4,13 +4,21 @@
 关键修复：monkey-patch platformdirs，将 YAPF 缓存重定向到项目内目录，
 避免 TRAE Sandbox 限制系统目录访问导致 import mmcv 卡住。
 """
+import argparse
 import os
 import sys
 import time
 from pathlib import Path
 
+parser = argparse.ArgumentParser(description="Run the local pose-estimation pipeline.")
+parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[1])
+parser.add_argument("--input-video", type=Path)
+parser.add_argument("--output-dir", type=Path)
+parser.add_argument("--device", default="cuda:0")
+args = parser.parse_args()
+
 # ---- 0. 先 monkey-patch platformdirs，必须在 import mmcv/mmdet/mmpose 之前 ----
-project_dir = r"C:\Users\John\Desktop\look model"
+project_dir = str(args.project_root.expanduser().resolve())
 yapf_cache_dir = os.path.join(project_dir, ".cache", "yapf")
 os.makedirs(yapf_cache_dir, exist_ok=True)
 appdata_dir = os.path.join(project_dir, ".cache", "appdata")
@@ -73,9 +81,9 @@ from paths import DET_CHECKPOINT, POSE_CHECKPOINT
 DET_CONFIG = r"third_party/mmpose/demo/mmdetection_cfg/rtmdet_tiny_8xb32-300e_coco.py"
 POSE_CONFIG = r"third_party/mmpose/configs/body_2d_keypoint/rtmpose/coco/rtmpose-m_8xb256-420e_coco-256x192.py"
 
-INPUT_VIDEO = r"third_party/mmpose/demo/resources/demo.mp4"
-OUTPUT_DIR = r"experiments/outputs/pipeline_demo"
-DEVICE = "cuda:0"
+INPUT_VIDEO = str(args.input_video or (Path(project_dir) / "third_party" / "mmpose" / "demo" / "resources" / "demo.mp4"))
+OUTPUT_DIR = str(args.output_dir or (Path(project_dir) / "experiments" / "outputs" / "pipeline_demo"))
+DEVICE = args.device
 DET_CAT_ID = 0  # COCO person
 BBOX_THR = 0.3
 NMS_THR = 0.3

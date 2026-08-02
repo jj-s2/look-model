@@ -1,20 +1,13 @@
-"""集中管理模型权重与训练 checkpoint 路径。
-
-模型文件已迁移至 F 盘（F:\\look model\\），本文件集中定义所有模型路径常量。
-修改路径时只需改此文件一处，各脚本通过 import 使用。
-
-目录结构：
-  F:\\look model\\models\\pretrained\\              - 预训练权重
-  F:\\look model\\experiments\\outputs\\             - 训练 checkpoint
-      ├── posec3d_gmdcsa24\\                        - PoseC3D 基线
-      └── losocv\\fold_S{1,2,3,4}\\                 - LOSOCV 四折
-"""
+"""Centralized paths for pretrained weights and training checkpoints."""
 import os
+from pathlib import Path
 
-# ===== F 盘模型根目录 =====
-F_ROOT = r"F:\look model"
-MODELS_DIR = os.path.join(F_ROOT, "models", "pretrained")
-CHECKPOINTS_DIR = os.path.join(F_ROOT, "experiments", "outputs")
+from core.settings import PROJECT_ROOT
+
+
+F_ROOT = str(PROJECT_ROOT)
+MODELS_DIR = str(PROJECT_ROOT / "models" / "pretrained")
+CHECKPOINTS_DIR = str(PROJECT_ROOT / "experiments" / "outputs")
 
 # ===== 预训练模型权重 =====
 # 人体检测（RTMDet-tiny，COCO）
@@ -45,7 +38,7 @@ LOSOCV_DIR = os.path.join(CHECKPOINTS_DIR, "losocv")
 
 def fold_dir(fold_name):
     """获取 LOSOCV 某折的目录，如 fold_dir('fold_S1')。"""
-    return os.path.join(LOSOCV_DIR, fold_name)
+    return str(PROJECT_ROOT / "experiments" / "outputs" / "losocv" / fold_name)
 
 
 if __name__ == '__main__':
@@ -63,5 +56,5 @@ if __name__ == '__main__':
         ("POSEC3D_PRETRAINED", POSEC3D_PRETRAINED),
         ("STGCN_PRETRAINED", STGCN_PRETRAINED),
     ]:
-        exists = "✓" if os.path.isfile(path) else "✗(未找到)"
+        exists = "✓" if Path(path).is_file() else "✗(未找到)"
         print(f"  {name}: {exists}")

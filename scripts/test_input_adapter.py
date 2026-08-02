@@ -8,12 +8,17 @@
 - with 上下文资源释放
 - ezviz_stream 占位抛 NotImplementedError
 """
+import argparse
 import os
 import sys
 import time
+from pathlib import Path
 
 # 添加项目根到 sys.path
-project_dir = r"C:\Users\John\Desktop\look model"
+parser = argparse.ArgumentParser(description="Exercise input-adapter implementations.")
+parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[1])
+args = parser.parse_args()
+project_dir = str(args.project_root.expanduser().resolve())
 sys.path.insert(0, project_dir)
 
 from vision.input_adapter import (

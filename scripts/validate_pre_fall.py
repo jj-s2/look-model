@@ -13,6 +13,7 @@
   - ROC-AUC（区分 Fall 前 vs ADL 的能力）
   - 不同提前量（跌倒前 3/5/10 秒）的预判召回率
 """
+import argparse
 import os
 import re
 import csv
@@ -20,7 +21,10 @@ import pickle
 import numpy as np
 from pathlib import Path
 
-project_dir = r"C:\Users\John\Desktop\look model"
+parser = argparse.ArgumentParser(description="Validate pre-fall risk prediction.")
+parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[1])
+args = parser.parse_args()
+project_dir = str(args.project_root.expanduser().resolve())
 POSE_DIR = os.path.join(project_dir, "datasets", "processed", "gmdcsa24_pose")
 METADATA_CSV = os.path.join(project_dir, "datasets", "metadata.csv")
 
