@@ -243,7 +243,6 @@ class EzvizStreamAdapter(InputAdapter):
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._health = StreamHealth()
         self._closed = False
-        self._connect()
 
     @property
     def health(self) -> StreamHealth:
@@ -253,8 +252,6 @@ class EzvizStreamAdapter(InputAdapter):
     def open(self) -> "EzvizStreamAdapter":
         if self._closed:
             raise RuntimeError("stream adapter is closed")
-        if self._cap is None:
-            self._connect()
         return self
 
     def close(self) -> None:
@@ -311,25 +308,39 @@ class EzvizStreamAdapter(InputAdapter):
             url = self._url_provider()
             if not isinstance(url, str) or not url:
                 raise ValueError("empty live address")
-            capture = self._capture_factory(url)
         except Exception:
             self._record_failure("url_refresh_failed")
             return False
-        if capture is None or not capture.isOpened():
-            if capture is not None:
-                capture.release()
+        capture = None
+        try:
+            capture = self._capture_factory(url)
+            if capture is None or not capture.isOpened():
+                self._safe_release(capture)
+                self._record_failure("capture_open_failed")
+                return False
+            self._cap = capture
+            return True
+        except Exception:
+            self._safe_release(capture)
             self._record_failure("capture_open_failed")
             return False
-        self._cap = capture
-        return True
 
     def _release_capture(self) -> None:
         if self._cap is None:
             return
         try:
-            self._cap.release()
+            self._safe_release(self._cap)
         finally:
             self._cap = None
+
+    @staticmethod
+    def _safe_release(capture: Any | None) -> None:
+        if capture is None:
+            return
+        try:
+            capture.release()
+        except Exception:
+            pass
 
     def _record_failure(self, reason: str) -> None:
         self._health = StreamHealth("degraded", self._health.consecutive_failures + 1, self._health.last_success_at, reason)
