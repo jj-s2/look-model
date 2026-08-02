@@ -111,7 +111,7 @@ class LiveMonitoringService:
                 continue
             self._source_futures.pop(id(source), None)
             try:
-                batch = self._normalise_batch(raw_batch)
+                batch, invalid_event_count = self._normalise_batch(raw_batch)
             except (TypeError, ValueError):
                 if modality is not None:
                     source_state[modality] = "degraded"
@@ -119,7 +119,9 @@ class LiveMonitoringService:
                 continue
             events.extend(batch.events)
             if modality is not None:
-                source_state[modality] = self._health_from_events(modality, batch.events)
+                source_state[modality] = "degraded" if invalid_event_count else self._health_from_events(modality, batch.events)
+            if invalid_event_count:
+                errors.append(f"{name}: invalid data")
             if batch.frame is not None:
                 latest_frame = batch.frame
                 if self.clip_buffer is not None:
@@ -168,12 +170,16 @@ class LiveMonitoringService:
             return default
 
     @staticmethod
-    def _normalise_batch(raw_batch: Sequence[SensorEvent] | SourceBatch) -> SourceBatch:
+    def _normalise_batch(raw_batch: Sequence[SensorEvent] | SourceBatch) -> tuple[SourceBatch, int]:
         if isinstance(raw_batch, SourceBatch):
-            return raw_batch
-        if isinstance(raw_batch, (str, bytes)):
+            batch = raw_batch
+        elif isinstance(raw_batch, (str, bytes)):
             raise TypeError("source batch must contain sensor events")
-        return SourceBatch(tuple(raw_batch))
+        else:
+            batch = SourceBatch(tuple(raw_batch))
+        valid_events = tuple(event for event in batch.events if isinstance(event, SensorEvent))
+        invalid_event_count = len(batch.events) - len(valid_events)
+        return SourceBatch(valid_events, batch.frame, batch.frame_timestamp), invalid_event_count
 
     @staticmethod
     def _modality_for(name: str) -> str | None:

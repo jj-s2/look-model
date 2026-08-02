@@ -161,3 +161,42 @@ def test_retention_and_alert_history_failures_are_isolated() -> None:
     assert "alerts: unavailable" in snapshot.source_errors
     assert "alert history: unavailable" in snapshot.source_errors
     assert "retention: unavailable" in snapshot.source_errors
+
+
+def test_malformed_batch_event_is_dropped_and_other_components_continue() -> None:
+    class MalformedCamera:
+        name = "camera"
+
+        def poll(self, now: datetime):
+            return SourceBatch(("bad",))
+
+    class RecordingDispatcher:
+        def __init__(self):
+            self.history_requested = False
+
+        def dispatch(self, decision):
+            raise AssertionError("bad batch must not create a decision")
+
+        def recent_alerts(self, limit=None):
+            self.history_requested = True
+            return []
+
+    class RecordingRetention:
+        def __init__(self):
+            self.called = False
+
+        def prune(self, now):
+            self.called = True
+            return []
+
+    dispatcher = RecordingDispatcher()
+    retention = RecordingRetention()
+    snapshot = LiveMonitoringService(
+        [MalformedCamera()], dispatcher=dispatcher, retention_policy=retention, clock=lambda: NOW
+    ).step()
+
+    assert snapshot.camera_health == "degraded"
+    assert snapshot.decisions == ()
+    assert "camera: invalid data" in snapshot.source_errors
+    assert dispatcher.history_requested is True
+    assert retention.called is True
