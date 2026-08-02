@@ -33,6 +33,17 @@ prompt only; it never produces a diagnosis.
 | Decision threshold | unavailable |
 | Random seed | unavailable |
 
+### Per-class confusion matrices
+
+The recorded LOSOCV source contains the fall-positive confusion matrix. The ADL
+row is the corresponding binary-class complement, shown explicitly rather than
+being omitted.
+
+| Class | TN | FP | FN | TP |
+| --- | ---: | ---: | ---: | ---: |
+| fall | 74 | 7 | 6 | 64 |
+| adl | 64 | 6 | 7 | 74 |
+
 ### Performance evidence
 
 | Metric | Observed |
@@ -59,3 +70,20 @@ prompt only; it never produces a diagnosis.
   unavailable, never demo data.
 - A release-gate failure is intentional and must block performance claims until
   the missing or failing evidence is rerun.
+
+## Remaining release blockers
+
+- `experiments/outputs/losocv/summary.json` is an older result and lacks the
+  required `kind: classification_evaluation` and same-batch `release_id`.
+  It must not be combined with an arbitrary benchmark JSON to produce PASS.
+- `outputs/benchmark.json` is capture/decode-only, has no readable replay in
+  this environment, and is therefore not `pipeline_scope: full_inference` or a
+  passing benchmark artifact.
+- The required observed normal-activity false-alarms/hour run, full inference
+  P50/P95 run, and 30-minute C6c/SDNL1 validation remain incomplete.
+- A repository-wide legacy absolute-path scan still finds runtime-relevant
+  paths in `configs/skeleton/posec3d_slowonly_r50_gmdcsa24_fall.py`,
+  `configs/skeleton/stgcn_gmdcsa24_fall.py`, multiple
+  `scripts/*losocv*.py`/`scripts/*mmaction*_wrapper.py`/`scripts/*mmpose*_wrapper.py`,
+  and captured `experiments/outputs/**/config.py`. They are outside this
+  evaluation-report fix and have not been migrated or declared portable.

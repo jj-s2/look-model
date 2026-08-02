@@ -44,6 +44,13 @@ def release_gate_failures(metrics: Mapping[str, Any]) -> list[str]:
             failures.append(f"{label} {value:.3f} is below {threshold:.3f}")
         elif relation == "at most" and value > threshold:
             failures.append(f"{label} {value:.3f} exceeds {threshold:.3f}")
+    release_id = metrics.get("release_id")
+    if not isinstance(release_id, str) or not release_id.strip():
+        failures.append("release provenance is missing a release_id")
+    if metrics.get("pipeline_scope") != "full_inference":
+        failures.append("pipeline_scope must be full_inference")
+    if metrics.get("benchmark_release_gate_passed") is not True:
+        failures.append("benchmark release_gate_passed evidence is missing or false")
     return failures
 
 
@@ -56,6 +63,16 @@ def _render_report(metrics: Mapping[str, Any], failures: Sequence[str], sources:
     source_lines = "\n".join(f"- `{source.as_posix()}`" for source in sources) or "- No metrics files were supplied."
     failure_lines = "\n".join(f"- {reason}" for reason in failures) or "- All global gates are met by the supplied evidence."
     confusion = metrics.get("confusion_matrix", "unavailable")
+    matrices = metrics.get("per_class_confusion_matrix")
+
+    def matrix_row(label: str) -> str:
+        matrix = matrices.get(label) if isinstance(matrices, Mapping) else None
+        if not isinstance(matrix, Mapping):
+            return f"| {label} | unavailable | unavailable | unavailable | unavailable |"
+        return "| {label} | {tn} | {fp} | {fn} | {tp} |".format(
+            label=label, tn=matrix.get("tn", "unavailable"), fp=matrix.get("fp", "unavailable"),
+            fn=matrix.get("fn", "unavailable"), tp=matrix.get("tp", "unavailable"),
+        )
     return f"""# Evaluation report
 
 ## Release gate: {gate}
@@ -89,6 +106,13 @@ prompt only; it never produces a diagnosis.
 | Split strategy | {show('split_strategy')} |
 | Decision threshold | {show('threshold')} |
 | Random seed | {show('random_seed')} |
+
+### Per-class confusion matrices
+
+| Class | TN | FP | FN | TP |
+| --- | ---: | ---: | ---: | ---: |
+{matrix_row('fall')}
+{matrix_row('adl')}
 
 ### Performance evidence
 
@@ -162,25 +186,62 @@ def _expand_metric_files(metrics_files: Sequence[Path]) -> list[Path]:
     return files
 
 
-def generate_evaluation_report(metrics_files: Sequence[Path]) -> str:
-    """Load metrics JSON files, enforce the gates, and return Markdown text."""
-    merged: dict[str, Any] = {}
-    valid_files: list[Path] = []
+def _collect_release_metrics(metrics_files: Sequence[Path]) -> tuple[dict[str, Any], list[Path], list[str]]:
+    """Accept exactly one classification and one benchmark artifact for one release.
+
+    Aggregating arbitrary JSON would allow unrelated results to manufacture a
+    passing report.  These two typed artifacts must declare the same release ID.
+    """
+    classifications: list[tuple[Path, Mapping[str, Any]]] = []
+    benchmarks: list[tuple[Path, Mapping[str, Any]]] = []
     for path in _expand_metric_files(metrics_files):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if isinstance(payload, Mapping):
-            extracted = _extract_metrics(payload)
-            if extracted:
-                merged.update(extracted)
-                valid_files.append(path)
-    report = _render_report(merged, release_gate_failures(merged), valid_files)
-    failures = release_gate_failures(merged)
+        if not isinstance(payload, Mapping):
+            continue
+        if payload.get("kind") == "classification_evaluation":
+            classifications.append((path, payload))
+        elif payload.get("kind") == "pipeline_benchmark":
+            benchmarks.append((path, payload))
+
+    failures: list[str] = []
+    if len(classifications) != 1:
+        failures.append("release provenance requires exactly one classification_evaluation artifact")
+    if len(benchmarks) != 1:
+        failures.append("release provenance requires exactly one pipeline_benchmark artifact")
+    if failures:
+        return {}, [], failures
+
+    classification_path, classification = classifications[0]
+    benchmark_path, benchmark = benchmarks[0]
+    classification_id = classification.get("release_id")
+    benchmark_id = benchmark.get("release_id")
+    if not isinstance(classification_id, str) or not classification_id.strip():
+        failures.append("classification release provenance is missing release_id")
+    if not isinstance(benchmark_id, str) or not benchmark_id.strip():
+        failures.append("benchmark release provenance is missing release_id")
+    if not failures and classification_id != benchmark_id:
+        failures.append("classification and benchmark release_id values do not match")
+    if failures:
+        return {}, [classification_path, benchmark_path], failures
+
+    merged = _extract_metrics(classification)
+    merged.update(_extract_metrics(benchmark))
+    merged["release_id"] = classification_id
+    merged["pipeline_scope"] = benchmark.get("pipeline_scope")
+    merged["benchmark_release_gate_passed"] = benchmark.get("release_gate_passed")
+    return merged, [classification_path, benchmark_path], []
+
+
+def generate_evaluation_report(metrics_files: Sequence[Path]) -> str:
+    """Load metrics JSON files, enforce the gates, and return Markdown text."""
+    merged, valid_files, provenance_failures = _collect_release_metrics(metrics_files)
+    failures = [*provenance_failures, *release_gate_failures(merged)]
     if failures:
         raise ReleaseGateError("release gate failed: " + "; ".join(failures))
-    return report
+    return _render_report(merged, (), valid_files)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -188,20 +249,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--metrics", required=True, type=Path, nargs="+", help="JSON files or directories")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args(argv)
-    files = _expand_metric_files(args.metrics)
-    merged: dict[str, Any] = {}
-    valid_files: list[Path] = []
-    for path in files:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if isinstance(payload, Mapping):
-            extracted = _extract_metrics(payload)
-            if extracted:
-                merged.update(extracted)
-                valid_files.append(path)
-    failures = release_gate_failures(merged)
+    merged, valid_files, provenance_failures = _collect_release_metrics(args.metrics)
+    failures = [*provenance_failures, *release_gate_failures(merged)]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(_render_report(merged, failures, valid_files), encoding="utf-8")
     if failures:

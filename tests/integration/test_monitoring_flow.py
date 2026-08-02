@@ -79,7 +79,7 @@ def test_benchmark_records_missing_local_input_as_unavailable(tmp_path) -> None:
     assert report.threshold is None
 
 
-def test_report_merge_keeps_classification_metrics_when_benchmark_marks_them_unavailable(tmp_path) -> None:
+def test_report_rejects_metrics_without_release_provenance(tmp_path) -> None:
     evaluation = tmp_path / "evaluation.json"
     benchmark = tmp_path / "benchmark.json"
     evaluation.write_text(json.dumps({"overall_argmax": {
@@ -91,7 +91,63 @@ def test_report_merge_keeps_classification_metrics_when_benchmark_marks_them_una
         "p95_latency_seconds": 1.1, "false_alarms_per_hour": 0.1,
     }), encoding="utf-8")
 
-    report = generate_evaluation_report([evaluation, benchmark])
+    with pytest.raises(ReleaseGateError, match="release"):
+        generate_evaluation_report([evaluation, benchmark])
 
-    assert "| Fall F1 | 0.91" in report
-    assert "## Release gate: PASS" in report
+
+def test_report_requires_passing_full_inference_benchmark(tmp_path) -> None:
+    evaluation = tmp_path / "evaluation.json"
+    benchmark = tmp_path / "benchmark.json"
+    evaluation.write_text(json.dumps({
+        "kind": "classification_evaluation", "release_id": "release-2026-08-02",
+        "overall_argmax": {"fall_f1": 0.91, "fall_recall": 0.90, "fall_precision": 0.92,
+                           "tn": 8, "fp": 1, "fn": 1, "tp": 10},
+    }), encoding="utf-8")
+    benchmark.write_text(json.dumps({
+        "kind": "pipeline_benchmark", "release_id": "release-2026-08-02",
+        "pipeline_scope": "capture_decode_only", "release_gate_passed": True,
+        "p95_latency_seconds": 1.1, "false_alarms_per_hour": 0.1,
+    }), encoding="utf-8")
+
+    with pytest.raises(ReleaseGateError, match="full_inference"):
+        generate_evaluation_report([evaluation, benchmark])
+
+
+def test_report_rejects_classification_and_benchmark_from_different_releases(tmp_path) -> None:
+    evaluation = tmp_path / "evaluation.json"
+    benchmark = tmp_path / "benchmark.json"
+    evaluation.write_text(json.dumps({
+        "kind": "classification_evaluation", "release_id": "release-a",
+        "overall_argmax": {"fall_f1": 0.91, "fall_recall": 0.90, "fall_precision": 0.92,
+                           "tn": 8, "fp": 1, "fn": 1, "tp": 10},
+    }), encoding="utf-8")
+    benchmark.write_text(json.dumps({
+        "kind": "pipeline_benchmark", "release_id": "release-b",
+        "pipeline_scope": "full_inference", "release_gate_passed": True,
+        "p95_latency_seconds": 1.1, "false_alarms_per_hour": 0.1,
+    }), encoding="utf-8")
+
+    with pytest.raises(ReleaseGateError, match="release_id values do not match"):
+        generate_evaluation_report([evaluation, benchmark])
+
+
+def test_report_renders_fall_and_adl_confusion_matrices() -> None:
+    report = build_report(
+        {
+            "release_id": "release-2026-08-02",
+            "fall_f1": 0.91,
+            "fall_recall": 0.90,
+            "fall_precision": 0.92,
+            "p95_latency_seconds": 1.1,
+            "false_alarms_per_hour": 0.1,
+            "pipeline_scope": "full_inference",
+            "benchmark_release_gate_passed": True,
+            "per_class_confusion_matrix": {
+                "fall": {"tn": 8, "fp": 1, "fn": 1, "tp": 10},
+                "adl": {"tn": 10, "fp": 1, "fn": 1, "tp": 8},
+            },
+        }
+    )
+
+    assert "| fall | 8 | 1 | 1 | 10 |" in report
+    assert "| adl | 10 | 1 | 1 | 8 |" in report
