@@ -38,6 +38,15 @@ def test_demo_source_marks_every_batch_as_demo(tmp_path) -> None:
     assert batch.records[0].heart_rate == 72.0
 
 
+def test_demo_source_rejects_timestamp_without_an_offset(tmp_path) -> None:
+    fixture = tmp_path / "physiology.jsonl"
+    fixture.write_text(json.dumps({"timestamp": "2026-08-01T12:00:00", "heart_rate": 72}) + "\n", encoding="utf-8")
+
+    batch = DemoJsonlPhysiologySource(fixture).poll(START, END)
+
+    assert batch.records == ()
+
+
 def test_real_source_keeps_unknown_fields_for_audit_without_parsing_them() -> None:
     class Response:
         def json(self):
