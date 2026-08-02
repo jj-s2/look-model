@@ -47,6 +47,28 @@ def test_missing_radar_lowers_quality_but_does_not_block_fall(engine: DecisionEn
     assert any("radar" in reason for reason in fall.reasons)
 
 
+def test_vision_fall_without_radar_evidence_is_vision_only(engine: DecisionEngine) -> None:
+    fall = engine.evaluate([CONFIRMED_FALL], NOW)[0]
+
+    assert fall.quality == "vision_only"
+
+
+def test_matching_available_radar_evidence_enables_multimodal_fall(engine: DecisionEngine) -> None:
+    radar = event(Source.RADAR, EventType.PHYSIOLOGY, {"subject_id": "elder-1", "motion_anomaly": True})
+
+    fall = engine.evaluate([CONFIRMED_FALL, radar], NOW)[0]
+
+    assert fall.quality == "multimodal"
+
+
+def test_other_subject_radar_evidence_does_not_enable_multimodal_fall(engine: DecisionEngine) -> None:
+    radar = event(Source.RADAR, EventType.PHYSIOLOGY, {"subject_id": "elder-2", "motion_anomaly": True})
+
+    fall = engine.evaluate([CONFIRMED_FALL, radar], NOW)[0]
+
+    assert fall.quality == "vision_only"
+
+
 @pytest.mark.parametrize(
     ("source_event", "expected_level"),
     [
