@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "version": "stanford-gds15-zh-2026-08-02",
+    "source_url": "https://web.stanford.edu/~yesavage/GDS",
+    "source_urls": [
+      "https://web.stanford.edu/~yesavage/GDS",
+      "https://web.stanford.edu/~yesavage/Chinese.html",
+      "https://web.stanford.edu/~yesavage/Australian%20Chinese.pdf"
+    ],
+    "accessed_at": "2026-08-02",
+    "purpose": "screening_not_diagnosis"
+  },
+  "items": [
+    {"id": "q01", "question_zh": "您对自己的生活基本感到满意吗？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q02", "question_zh": "您是否已放弃许多活动和兴趣？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q03", "question_zh": "您是否觉得生活空虚？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q04", "question_zh": "您是否经常感到厌烦？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q05", "question_zh": "您对未来抱有希望吗？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q06", "question_zh": "您是否被无法摆脱的想法困扰？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q07", "question_zh": "您大部分时间精神愉快吗？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q08", "question_zh": "您是否害怕会有不幸的事情发生？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q09", "question_zh": "您大部分时间感到幸福吗？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q10", "question_zh": "您是否经常感到无助？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q11", "question_zh": "您是否经常感到坐立不安？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q12", "question_zh": "您是否喜欢待在家里，而不愿外出尝试新事物？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q13", "question_zh": "您是否经常担心将来？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q14", "question_zh": "您是否觉得自己的记忆力比多数人差？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q15", "question_zh": "您觉得现在活着很惬意吗？", "options": ["是", "否"], "risk_answer": false}
+  ]
+}
