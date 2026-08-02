@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from statistics import median
 
 
@@ -47,6 +47,7 @@ class WellbeingTrendAnalyzer:
         self.baseline_days = max(7, int(baseline_days))
         self._history: list[tuple[date, dict[str, float]]] = []
         self._deviation_streak = 0
+        self._last_day: date | None = None
 
     def update(
         self,
@@ -57,15 +58,21 @@ class WellbeingTrendAnalyzer:
     ) -> TrendResult:
         if not isinstance(day, date):
             raise ValueError("day must be a date")
+        if self._last_day is not None and day < self._last_day:
+            raise ValueError("updates must be chronological by natural day")
         review = self._self_harm_event(day, checkin)
         values = self._values(physiology, activity, checkin)
         baseline = self._baseline()
         evidence = self._deviations(values, baseline) if len(self._history) >= self.baseline_days else ()
-        if evidence:
+        is_new_day = day != self._last_day
+        if is_new_day and self._last_day is not None and day != self._last_day + timedelta(days=1):
+            self._deviation_streak = 0
+        if is_new_day and evidence:
             self._deviation_streak += 1
-        else:
+        elif is_new_day:
             self._deviation_streak = 0
         self._upsert(day, values)
+        self._last_day = day
         sustained = len(self._history) > self.baseline_days and self._deviation_streak >= 2
         return TrendResult(
             baseline_ready=len(self._history) >= self.baseline_days,
