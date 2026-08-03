@@ -11,6 +11,7 @@ import json
 import math
 import sys
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -74,6 +75,19 @@ def _subject(record: Mapping[str, Any]) -> str:
     if not isinstance(observation, Mapping) or not isinstance(observation.get("subject_id"), str) or not observation["subject_id"]:
         raise ValueError("every record requires observation.subject_id")
     return observation["subject_id"]
+
+
+def _observed_at(record: Mapping[str, Any]) -> datetime:
+    observation = record.get("observation", record)
+    if not isinstance(observation, Mapping) or not isinstance(observation.get("observed_at"), str):
+        raise ValueError("every record requires an ISO-8601 observation timestamp")
+    try:
+        value = datetime.fromisoformat(observation["observed_at"])
+    except ValueError as error:
+        raise ValueError("observation.observed_at must be ISO-8601") from error
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("observation.observed_at must be timezone-aware")
+    return value.astimezone(timezone.utc)
 
 
 def _label(record: Mapping[str, Any]) -> tuple[int | None, int]:
@@ -216,8 +230,8 @@ def _outer_held_out_records(records: list[dict[str, Any]], model_names: Iterable
         training_subjects = sorted(set(subjects) - set(test_subjects))
         per_window: list[dict[str, Any]] = []
         for record in test:
-            cutoff = str(record.get("observation", {}).get("observed_at", ""))
-            training = [candidate for candidate in records if _subject(candidate) in training_subjects and str(candidate.get("observation", {}).get("observed_at", "")) <= cutoff]
+            cutoff = _observed_at(record)
+            training = [candidate for candidate in records if _subject(candidate) in training_subjects and _observed_at(candidate) <= cutoff]
             thresholds: dict[str, dict[str, float | None]] = {}
             for name in model_names:
                 thresholds[name] = {}
@@ -225,9 +239,9 @@ def _outer_held_out_records(records: list[dict[str, Any]], model_names: Iterable
                     source = [candidate["_predictions"][name][horizon] for candidate in training if candidate["_predictions"] is not None and not bool(candidate.get("abstained", False))]
                     thresholds[name][horizon] = _threshold(source)
             record["_inner_thresholds"] = thresholds
-            latest = max((str(candidate.get("observation", {}).get("observed_at", "")) for candidate in training), default=None)
-            per_window.append({"subject_id": _subject(record), "as_of_timestamp": cutoff,
-                               "calibration_records": len(training), "calibration_latest_timestamp": latest})
+            latest = max((_observed_at(candidate) for candidate in training), default=None)
+            per_window.append({"subject_id": _subject(record), "as_of_timestamp": cutoff.isoformat(),
+                               "calibration_records": len(training), "calibration_latest_timestamp": None if latest is None else latest.isoformat()})
         held_out.extend(test)
         folds.append({"fold": fold, "test_subjects": test_subjects, "training_subjects": training_subjects,
                       "held_out_records": len(test),

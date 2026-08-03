@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from datetime import datetime, timezone
 import subprocess
 import sys
 from pathlib import Path
@@ -185,3 +186,35 @@ def test_each_held_out_window_calibrates_before_its_own_timestamp(tmp_path: Path
     fold = next(item for item in result["split_metadata"]["folds"] if "alice" in item["test_subjects"])
     alice_window = next(item for item in fold["inner_calibration"]["per_window"] if item["subject_id"] == "alice")
     assert alice_window["calibration_latest_timestamp"] <= alice_window["as_of_timestamp"]
+
+
+def test_rolling_origin_compares_mixed_timezone_offsets_as_utc_instants(tmp_path: Path) -> None:
+    dataset, model, output = tmp_path / "data.jsonl", tmp_path / "model", tmp_path / "evaluation.json"
+    _write_dataset(dataset)
+    _write_model(model)
+    rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines()]
+    rows[0]["observation"]["observed_at"] = "2026-01-01T03:00:00+00:00"  # Alice cutoff.
+    alice_fold = int(hashlib.sha256(b"alice").hexdigest()[:8], 16) % 5
+    future_subject = next(f"offset-future-{index}" for index in range(100) if int(hashlib.sha256(f"offset-future-{index}".encode()).hexdigest()[:8], 16) % 5 != alice_fold)
+    future = json.loads(json.dumps(rows[0]))
+    future["observation"]["subject_id"] = future_subject
+    # Lexically smaller but 03:30 UTC: this must remain future data.
+    future["observation"]["observed_at"] = "2026-01-01T02:30:00-01:00"
+    future["subject_split_id"] = f"subject-{future_subject}"
+    rows.append(future)
+    dataset.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    completed = _run("scripts/evaluate_pmcc.py", "--input", str(dataset), "--model", str(model), "--output", str(output))
+
+    assert completed.returncode == 0, completed.stderr
+    fold = next(item for item in json.loads(output.read_text(encoding="utf-8"))["split_metadata"]["folds"] if "alice" in item["test_subjects"])
+    alice_window = next(item for item in fold["inner_calibration"]["per_window"] if item["subject_id"] == "alice")
+    assert alice_window["calibration_latest_timestamp"] <= alice_window["as_of_timestamp"]
+    alice_fold = int(hashlib.sha256(b"alice").hexdigest()[:8], 16) % 5
+    cutoff = datetime.fromisoformat(rows[0]["observation"]["observed_at"]).astimezone(timezone.utc)
+    expected = sum(
+        int(hashlib.sha256(row["observation"]["subject_id"].encode()).hexdigest()[:8], 16) % 5 != alice_fold
+        and datetime.fromisoformat(row["observation"]["observed_at"]).astimezone(timezone.utc) <= cutoff
+        for row in rows
+    )
+    assert alice_window["calibration_records"] == expected
