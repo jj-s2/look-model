@@ -72,7 +72,7 @@ def verify_one(ds: dict) -> dict:
         issues.append(f"size mismatch: expected {expected_size}, got {actual_size}")
     if expected_sha256 and actual_sha256 != expected_sha256:
         issues.append(f"sha256 mismatch: expected {expected_sha256}, got {actual_sha256}")
-    if expected_md5 and actual_md5 != actual_md5:
+    if expected_md5 and actual_md5 != expected_md5:
         issues.append(f"md5 mismatch: expected {expected_md5}, got {actual_md5}")
 
     return {

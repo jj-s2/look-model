@@ -107,3 +107,24 @@ class TestVerifyScript:
         import verify_datasets
         assert hasattr(verify_datasets, "verify_one")
         assert hasattr(verify_datasets, "compute_hash")
+
+    def test_verify_one_rejects_wrong_md5(self, tmp_path, monkeypatch):
+        import verify_datasets as vd
+
+        raw_dir = tmp_path / "raw"
+        target_dir = raw_dir / "fixture"
+        target_dir.mkdir(parents=True)
+        monkeypatch.setattr(vd, "RAW_DIR", raw_dir)
+        monkeypatch.setattr(vd, "PROJECT_ROOT", tmp_path)
+        target = target_dir / "sample.bin"
+        target.write_bytes(b"known content")
+        result = vd.verify_one({
+            "name": "fixture",
+            "version": "1",
+            "expected_size_bytes": target.stat().st_size,
+            "md5": "00000000000000000000000000000000",
+            "sha256": None,
+        })
+
+        assert result["status"] == "mismatch"
+        assert any("md5 mismatch" in issue for issue in result["issues"])
