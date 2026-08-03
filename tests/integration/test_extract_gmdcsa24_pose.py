@@ -1,4 +1,4 @@
-from scripts.extract_gmdcsa24_pose import parse_class_segments, pad_or_sample_pose
+from scripts.extract_gmdcsa24_ultralytics_pose import _cache_name, parse_class_segments, pad_or_sample_pose
 
 
 def test_parse_class_segments_extracts_official_intervals():
@@ -13,3 +13,7 @@ def test_pad_or_sample_pose_keeps_masked_shape():
     result = pad_or_sample_pose(pose, frames=8)
     assert result.shape == (8, 17, 3)
     assert result[0, 0, 2] == 1.0
+
+
+def test_cache_name_keeps_same_stem_across_categories_unique():
+    assert _cache_name("subject-1", "ADL", "01") != _cache_name("subject-1", "Fall", "01")

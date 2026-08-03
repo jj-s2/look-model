@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -79,3 +81,14 @@ def test_fixture_output_is_not_release_eligible(tmp_path: Path) -> None:
 
     assert lock["demo"] is True
     assert lock["release_eligible"] is False
+
+
+def test_prepare_script_help_works_when_invoked_by_path() -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, str(project_root / "scripts" / "prepare_unified_fall_data.py"), "--help"],
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr

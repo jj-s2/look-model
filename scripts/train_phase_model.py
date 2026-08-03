@@ -62,7 +62,21 @@ def _demo_batches(torch, device, *, count: int = 16, batch_size: int = 4):
             torch.randint(0, 2, (size,), generator=generator).float().to(device),
             torch.randint(0, 2, (size,), generator=generator).float().to(device),
             torch.randint(0, 2, (size,), generator=generator).float().to(device),
+            {"phase", "fall_event", "prefall", "recovery"},
         )
+
+
+def _resolve_feature_path(root: Path, clip: Mapping[str, object]) -> Path:
+    """Resolve a relative cache path whether root is dataset or collection level."""
+    media_path = Path(str(clip["media_path"]))
+    candidates = [root / media_path]
+    dataset = str(clip.get("dataset") or "")
+    if dataset:
+        candidates.append(root / dataset / media_path)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[-1]
 
 
 def _real_batches(torch, device, lock: Mapping[str, object], split: Mapping[str, object], root: Path):
@@ -73,7 +87,7 @@ def _real_batches(torch, device, lock: Mapping[str, object], split: Mapping[str,
         clip = clips.get(str(clip_id))
         if not clip:
             continue
-        path = root / str(clip["media_path"])
+        path = _resolve_feature_path(root, clip)
         if path.suffix.lower() not in {".npz", ".npy"}:
             raise RuntimeError("real training requires extracted .npz/.npy pose features; raw video was not silently converted")
         if path.suffix.lower() == ".npz":
@@ -84,16 +98,23 @@ def _real_batches(torch, device, lock: Mapping[str, object], split: Mapping[str,
             samples.append((data, data, clip))
     if not samples:
         raise RuntimeError("no trainable pose-feature samples found in frozen dataset lock")
+    phase_names = ["normal_adl", "prefall_abnormal", "descending", "impact", "fallen", "recovering"]
     for short, long_pose, clip in samples:
-        phase = ["normal_adl", "prefall_abnormal", "descending", "impact", "fallen", "recovering"].index(clip.get("phase") or "normal_adl")
+        supervision = {str(item) for item in clip.get("supervision_mask", []) if str(item) != "none"}
+        phase_name = clip.get("phase")
+        phase = phase_names.index(phase_name) if phase_name in phase_names else -1
+        # A coarse fall label does not justify inventing impact/fallen phase targets.
+        prefall = 0.0 if "prefall" in supervision else -1.0
+        recovery = 0.0 if "recovery" in supervision else -1.0
         yield (
             torch.as_tensor(short, dtype=torch.float32, device=device).reshape(1, -1),
             torch.as_tensor(long_pose, dtype=torch.float32, device=device).reshape(1, 64, 17, 3),
-            torch.ones(1, device=device), torch.ones(1, device=device),
+            torch.zeros(1, device=device), torch.ones(1, device=device),
             torch.tensor([phase], device=device),
             torch.tensor([float(clip.get("coarse_event") == "fall")], device=device),
-            torch.tensor([float("prefall" in clip.get("supervision_mask", []))], device=device),
-            torch.zeros(1, device=device),
+            torch.tensor([prefall], device=device),
+            torch.tensor([recovery], device=device),
+            supervision or {"fall_event"},
         )
 
 
@@ -120,10 +141,10 @@ def train_phase_model(*, dataset_lock: Path, split_manifest: Path, output_dir: P
     for _epoch in range(total_epochs):
         model.train()
         for batch in (_demo_batches(torch, device) if demo else _real_batches(torch, device, lock, split, root)):
-            short, long_pose, short_q, long_q, phase, fall, prefall, recovery = batch
+            short, long_pose, short_q, long_q, phase, fall, prefall, recovery, supervision = batch
             optimizer.zero_grad(set_to_none=True)
             output = model(short, long_pose, short_q, long_q)
-            loss = compute_multitask_loss(output, LossTargets(phase, fall, prefall, recovery), {"phase", "fall_event", "prefall", "recovery"})
+            loss = compute_multitask_loss(output, LossTargets(phase, fall, prefall, recovery), supervision)
             loss.total.backward()
             optimizer.step()
             losses.append(float(loss.total.detach().cpu()))
