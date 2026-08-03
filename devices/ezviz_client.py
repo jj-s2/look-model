@@ -8,13 +8,15 @@ from typing import Any, Mapping
 
 import requests
 
-from .models import AccessToken, EzvizDevice, TalkMode
+from .models import AccessToken, EzvizDevice, EzvizPackageActivation, TalkMode
 
 
 BASE_URL = "https://open.ys7.com"
 TOKEN_ENDPOINT = "/api/lapp/token/get"
 DEVICE_LIST_ENDPOINT = "/api/lapp/device/list"
 LIVE_ADDRESS_ENDPOINT = "/api/lapp/v2/live/address/get"
+PACKAGE_ACTIVATE_ENDPOINT = "/api/v3/mall/device/package/code/active"
+ENCODE_TYPE_CHANGE_ENDPOINT = "/api/lapp/device/encodeType/change"
 _TALK_MODE_BY_VALUE: dict[int, TalkMode] = {0: "none", 1: "full_duplex", 3: "half_duplex"}
 _TOKEN_SAFETY_MARGIN_MS = 60_000
 
@@ -104,6 +106,75 @@ class EzvizClient:
         if not isinstance(url, str) or not url:
             raise EzvizApiError("invalid_response", "missing live address", LIVE_ADDRESS_ENDPOINT)
         return url
+
+    def activate_device_package(
+        self, package_device_id: str, device_serial: str, channel_no: int = 1
+    ) -> EzvizPackageActivation:
+        """Bind one competition package activation code to one device channel."""
+        if not package_device_id:
+            raise ValueError("package_device_id must not be empty")
+        if not device_serial:
+            raise ValueError("device_serial must not be empty")
+        if channel_no < 1:
+            raise ValueError("channel_no must be at least 1")
+        response = self._session.post(
+            f"{BASE_URL}{PACKAGE_ACTIVATE_ENDPOINT}",
+            headers={"accessToken": self._require_access_token(), "Content-Type": "application/json"},
+            json=[
+                {
+                    "packageDeviceId": package_device_id,
+                    "deviceSerial": device_serial,
+                    "channelNo": str(channel_no),
+                }
+            ],
+            timeout=self._timeout,
+        )
+        try:
+            payload = response.json()
+        except (TypeError, ValueError) as exc:
+            raise EzvizApiError("invalid_response", "invalid JSON response", PACKAGE_ACTIVATE_ENDPOINT) from exc
+        if not isinstance(payload, Mapping):
+            raise EzvizApiError("invalid_response", "invalid response", PACKAGE_ACTIVATE_ENDPOINT)
+        meta = payload.get("meta")
+        if not isinstance(meta, Mapping) or str(meta.get("code")) != "200":
+            message = str(meta.get("message") if isinstance(meta, Mapping) else "request failed")
+            raise EzvizApiError(
+                str(meta.get("code", "unknown") if isinstance(meta, Mapping) else "unknown"),
+                self._redact(message, package_device_id, device_serial),
+                PACKAGE_ACTIVATE_ENDPOINT,
+            )
+        data = payload.get("data")
+        if not isinstance(data, list) or not data or not isinstance(data[0], Mapping):
+            raise EzvizApiError("invalid_response", "missing activation result", PACKAGE_ACTIVATE_ENDPOINT)
+        result = data[0]
+        active_code = result.get("activeCode")
+        if not isinstance(active_code, int):
+            raise EzvizApiError("invalid_response", "missing activation status", PACKAGE_ACTIVATE_ENDPOINT)
+        return EzvizPackageActivation(
+            package_device_id=str(result.get("packageDeviceId") or package_device_id),
+            active_code=active_code,
+            active_message=str(result.get("activeMessage") or ""),
+        )
+
+    def change_encode_type(self, device_serial: str, channel_no: int = 1, encode_type: str = "H264") -> None:
+        """Change a device channel's video encoding for standard-stream consumers."""
+        if not device_serial:
+            raise ValueError("device_serial must not be empty")
+        if channel_no < 1:
+            raise ValueError("channel_no must be at least 1")
+        normalized = encode_type.upper()
+        if normalized not in {"H264", "H265"}:
+            raise ValueError("encode_type must be H264 or H265")
+        self._post(
+            ENCODE_TYPE_CHANGE_ENDPOINT,
+            {
+                "accessToken": self._require_access_token(),
+                "deviceSerial": device_serial,
+                "channelNo": channel_no,
+                "encodeType": normalized,
+            },
+            secrets=(device_serial,),
+        )
 
     def _require_access_token(self) -> str:
         if self._access_token is not None and self._token_is_valid(self._access_token):

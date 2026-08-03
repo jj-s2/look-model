@@ -29,6 +29,8 @@ python scripts/run_pipeline.py --input <local-video.mp4>
 ```powershell
 python scripts/probe_ezviz_devices.py --write-report outputs/device-capability-live.md
 python scripts/probe_ezviz_stream.py --frames 3 --save-first-frame outputs/ezviz-first-frame.jpg
+# 激活赛事设备套餐（每个设备通道只执行成功一次）
+python scripts/activate_ezviz_package.py --package-code <package-code>
 ```
 
 直播地址接口支持设备验证码以及 EZOPEN/HLS/RTMP/FLV 协议参数；若设备开启码流加密，萤石平台可能返回 60019，此时使用 EZOPEN 播放器或在设备设置中关闭码流加密后再取 HLS 帧。

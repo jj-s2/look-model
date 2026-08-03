@@ -28,3 +28,16 @@ class EzvizDevice:
     channel_count: int | None
     talk_mode: TalkMode
     capabilities: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class EzvizPackageActivation:
+    """Result returned when a competition package is bound to a device channel."""
+
+    package_device_id: str
+    active_code: int
+    active_message: str
+
+    @property
+    def activated(self) -> bool:
+        return self.active_code == 0

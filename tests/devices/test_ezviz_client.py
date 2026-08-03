@@ -90,6 +90,45 @@ def test_live_address_can_request_hls_for_frame_consumers(fake_session: FakeSess
     }
 
 
+def test_package_activation_uses_json_body_and_access_token_header(fake_session: FakeSession) -> None:
+    fake_session.queue(
+        {
+            "meta": {"code": 200, "message": "操作成功"},
+            "data": [{"packageDeviceId": "PACKAGE", "activeCode": 0, "activeMessage": ""}],
+        }
+    )
+    client = EzvizClient(
+        "key", "secret", session=fake_session, access_token=AccessToken("token", 9_999_999_999_999)
+    )
+
+    result = client.activate_device_package("PACKAGE", "SERIAL", 1)
+
+    assert result.activated is True
+    assert result.active_code == 0
+    assert fake_session.last_call["url"] == "https://open.ys7.com/api/v3/mall/device/package/code/active"
+    assert fake_session.last_call["headers"] == {"accessToken": "token", "Content-Type": "application/json"}
+    assert fake_session.last_call["json"] == [
+        {"packageDeviceId": "PACKAGE", "deviceSerial": "SERIAL", "channelNo": "1"}
+    ]
+
+
+def test_encode_type_change_uses_config_form_endpoint(fake_session: FakeSession) -> None:
+    fake_session.queue({"code": "200", "msg": "操作成功", "data": None})
+    client = EzvizClient(
+        "key", "secret", session=fake_session, access_token=AccessToken("token", 9_999_999_999_999)
+    )
+
+    client.change_encode_type("SERIAL", 1, "H264")
+
+    assert fake_session.last_call["url"] == "https://open.ys7.com/api/lapp/device/encodeType/change"
+    assert fake_session.last_call["data"] == {
+        "accessToken": "token",
+        "deviceSerial": "SERIAL",
+        "channelNo": 1,
+        "encodeType": "H264",
+    }
+
+
 def test_list_devices_uses_official_fields_and_keeps_raw_capabilities(fake_session: FakeSession) -> None:
     fake_session.queue(
         {
