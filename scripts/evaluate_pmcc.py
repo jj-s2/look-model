@@ -214,20 +214,24 @@ def _outer_held_out_records(records: list[dict[str, Any]], model_names: Iterable
         test_subjects = sorted(subject for subject, assigned in assignments.items() if assigned == fold)
         test = [record for record in records if _subject(record) in test_subjects]
         training_subjects = sorted(set(subjects) - set(test_subjects))
-        cutoff = max(str(record.get("observation", {}).get("observed_at", "")) for record in test)
-        training = [record for record in records if _subject(record) in training_subjects and str(record.get("observation", {}).get("observed_at", "")) <= cutoff]
-        thresholds: dict[str, dict[str, float | None]] = {}
-        for name in model_names:
-            thresholds[name] = {}
-            for horizon, _ in HORIZONS:
-                source = [record["_predictions"][name][horizon] for record in training if record["_predictions"] is not None and not bool(record.get("abstained", False))]
-                thresholds[name][horizon] = _threshold(source)
+        per_window: list[dict[str, Any]] = []
         for record in test:
+            cutoff = str(record.get("observation", {}).get("observed_at", ""))
+            training = [candidate for candidate in records if _subject(candidate) in training_subjects and str(candidate.get("observation", {}).get("observed_at", "")) <= cutoff]
+            thresholds: dict[str, dict[str, float | None]] = {}
+            for name in model_names:
+                thresholds[name] = {}
+                for horizon, _ in HORIZONS:
+                    source = [candidate["_predictions"][name][horizon] for candidate in training if candidate["_predictions"] is not None and not bool(candidate.get("abstained", False))]
+                    thresholds[name][horizon] = _threshold(source)
             record["_inner_thresholds"] = thresholds
+            latest = max((str(candidate.get("observation", {}).get("observed_at", "")) for candidate in training), default=None)
+            per_window.append({"subject_id": _subject(record), "as_of_timestamp": cutoff,
+                               "calibration_records": len(training), "calibration_latest_timestamp": latest})
         held_out.extend(test)
         folds.append({"fold": fold, "test_subjects": test_subjects, "training_subjects": training_subjects,
-                      "held_out_records": len(test), "time_boundary": cutoff,
-                      "inner_calibration": {"time_blocked": True, "training_records": len(training), "thresholds": thresholds}})
+                      "held_out_records": len(test),
+                      "inner_calibration": {"time_blocked": True, "per_window": per_window}})
     return held_out, {"evaluation_population": "outer_held_out_subject_windows_only", "folds": folds}
 
 
@@ -275,7 +279,7 @@ def evaluate(records: list[dict[str, Any]], model_card: Mapping[str, Any]) -> di
             "model_rows": model_rows, "ablations": {name: {"status": "unavailable", "reason": "not separately scored in this artifact"} for name in ABLATIONS},
             "coverage": {"records": len(evaluated_records), "non_abstained_records": sum(not bool(record.get("abstained", False)) for record in evaluated_records), "abstention_rate": sum(bool(record.get("abstained", False)) for record in evaluated_records) / len(evaluated_records)},
             "stratified": _stratified(records), "method": {"outer_split": "subject_grouped", "calibration": "inner_training_folds_only", "association_only": True, "clinical_use": False,
-            "score_source": "artifact_predictions_or_deterministic_offline_placeholder"}}
+            "score_source": "artifact_predictions_or_unavailable"}}
 
 
 def _write_json(path: Path, result: Mapping[str, Any]) -> None:

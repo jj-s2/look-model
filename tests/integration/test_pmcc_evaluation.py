@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
@@ -157,3 +158,30 @@ def test_real_scoreless_records_are_rejected_and_synthetic_scoreless_metrics_are
     assert metric["reason"] == "scored_predictions_unavailable"
     assert _run("scripts/generate_pmcc_report.py", "--metrics", str(output), "--output", str(report)).returncode == 0
     assert "| full | 24h | unavailable | unavailable | unavailable |" in report.read_text(encoding="utf-8")
+
+
+def test_each_held_out_window_calibrates_before_its_own_timestamp(tmp_path: Path) -> None:
+    dataset, model, output = tmp_path / "data.jsonl", tmp_path / "model", tmp_path / "evaluation.json"
+    _write_dataset(dataset)
+    _write_model(model)
+    rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines()]
+    # Pick a deterministic different outer fold so this late record is a
+    # training candidate for alice, never a sibling in alice's held-out fold.
+    alice_fold = int(hashlib.sha256(b"alice").hexdigest()[:8], 16) % 5
+    future_subject = next(f"future-{index}" for index in range(100) if int(hashlib.sha256(f"future-{index}".encode()).hexdigest()[:8], 16) % 5 != alice_fold)
+    future = json.loads(json.dumps(rows[0]))
+    future["observation"]["subject_id"] = future_subject
+    future["observation"]["observed_at"] = "2026-01-20T00:00:00+00:00"
+    future["subject_split_id"] = f"subject-{future_subject}"
+    future["predictions"]["full"] = {"24h": 0.99, "72h": 0.99, "7d": 0.99}
+    rows.append(future)
+    dataset.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    completed = _run("scripts/evaluate_pmcc.py", "--input", str(dataset), "--model", str(model), "--output", str(output))
+
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(output.read_text(encoding="utf-8"))
+    assert result["method"]["score_source"] == "artifact_predictions_or_unavailable"
+    fold = next(item for item in result["split_metadata"]["folds"] if "alice" in item["test_subjects"])
+    alice_window = next(item for item in fold["inner_calibration"]["per_window"] if item["subject_id"] == "alice")
+    assert alice_window["calibration_latest_timestamp"] <= alice_window["as_of_timestamp"]
