@@ -24,6 +24,14 @@ python -m pytest tests/integration/test_monitoring_flow.py -q
 python scripts/run_pipeline.py --input <local-video.mp4>
 ```
 
+`Settings.from_env()` 会自动读取项目根目录的本地 `.env`（系统环境变量优先），因此已配置的萤石账号可以直接执行：
+
+```powershell
+python scripts/probe_ezviz_devices.py --write-report outputs/device-capability-live.md
+```
+
+直播地址接口支持设备验证码以及 EZOPEN/HLS/RTMP/FLV 协议参数；若设备开启码流加密，萤石平台可能返回 60019，此时使用 EZOPEN 播放器或在设备设置中关闭码流加密后再取 HLS 帧。
+
 `--offline-fixture` 不访问网络，故意显示 `unavailable`；它不是 C6c、直播、对讲或 SDNL1 的真实验证。真实设备接通后才可运行不带该参数的探测，缺失能力仍必须显示 `unavailable`，不可用演示数据替代。
 
 性能与门槛（任一失败即非零退出）：
