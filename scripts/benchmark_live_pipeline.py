@@ -24,6 +24,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LATENCY_GATE_SECONDS = 2.0
 
 
+def false_alarms_per_hour(false_alerts: int, duration_seconds: float) -> float:
+    """Normalize confirmed normal-activity false alerts by observed time."""
+    if false_alerts < 0 or duration_seconds <= 0:
+        raise ValueError("false_alerts must be non-negative and duration_seconds must be positive")
+    return float(false_alerts) / (duration_seconds / 3600.0)
+
+
 @dataclass(frozen=True)
 class BenchmarkReport:
     """A redaction-safe record of what this benchmark actually measured."""
