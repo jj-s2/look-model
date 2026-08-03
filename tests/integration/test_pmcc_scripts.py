@@ -79,6 +79,26 @@ def test_dataset_builder_rejects_mixed_or_invalid_evidence(tmp_path: Path) -> No
     assert "evidence" in completed.stderr.lower()
 
 
+def test_builder_and_trainer_reject_forged_top_level_provenance(tmp_path: Path) -> None:
+    fixture = tmp_path / "fixture.jsonl"
+    forged = tmp_path / "forged.jsonl"
+    assert _run("scripts/generate_pmcc_fixture.py", "--output", str(fixture)).returncode == 0
+    records = _read_jsonl(fixture)[:1]
+    records[0]["provenance"] = {"evidence_tier": "real_public", "promoted": True}
+    forged.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+
+    built = _run(
+        "scripts/build_pmcc_dataset.py", "--input", str(forged), "--output", str(tmp_path / "dataset.jsonl"),
+        "--evidence-tier", "real_public",
+    )
+    trained = _run("scripts/train_pmcc.py", "--input", str(forged), "--output", str(tmp_path / "model"))
+
+    assert built.returncode != 0
+    assert trained.returncode != 0
+    assert "provenance" in built.stderr.lower()
+    assert "provenance" in trained.stderr.lower()
+
+
 def test_train_script_writes_non_promoted_synthetic_model_card(tmp_path: Path) -> None:
     fixture = tmp_path / "fixture.jsonl"
     model_dir = tmp_path / "model"

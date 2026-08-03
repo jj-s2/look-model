@@ -49,10 +49,29 @@ def _nested_observation(record: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _provenance(record: Mapping[str, Any], observation: Mapping[str, Any]) -> Mapping[str, Any]:
-    provenance = record.get("provenance", observation.get("provenance"))
-    if not isinstance(provenance, Mapping):
+    """Merge provenance without letting a wrapper relabel its observation."""
+    top_level = record.get("provenance")
+    embedded = observation.get("provenance")
+    if top_level is not None and not isinstance(top_level, Mapping):
+        raise ValueError("record provenance must be an object")
+    if embedded is not None and not isinstance(embedded, Mapping):
+        raise ValueError("observation provenance must be an object")
+    if top_level is None and embedded is None:
         raise ValueError("record provenance is required")
-    return provenance
+    if top_level is None:
+        return dict(embedded)
+    if embedded is None:
+        return dict(top_level)
+    top_tier = _tier(top_level)
+    embedded_tier = _tier(embedded)
+    if top_tier is not embedded_tier:
+        raise ValueError("top-level and observation provenance evidence_tier must agree")
+    merged = dict(embedded)
+    merged.update(top_level)
+    # A false/missing flag in either source cannot be upgraded by a wrapper.
+    merged["evidence_tier"] = embedded_tier.value
+    merged["promoted"] = embedded.get("promoted") is True and top_level.get("promoted") is True
+    return merged
 
 
 def _tier(provenance: Mapping[str, Any]) -> EvidenceTier:
