@@ -149,6 +149,17 @@ def test_portable_model_artifact_round_trips_and_is_accepted_by_service(tmp_path
     )
     assert forecast.provenance["model"] == "configured_model"
 
+    missing_data = observation.to_dict()
+    missing_data["features"].pop("heart_rate", None)
+    missing_data["quality"].pop("heart_rate", None)
+    missing_data["availability"].pop("heart_rate", None)
+    missing_observation = DailyObservation.from_dict(missing_data)
+    missing_forecast = PMCCService(
+        model=model_dir / "model.json", observations=(missing_observation,)
+    ).forecast(missing_observation.subject_id, missing_observation.observed_at.date())
+    assert missing_forecast.provenance["model"] == "configured_model"
+    assert "heart_rate:raw" in missing_forecast.provenance["feature_names"]
+
 
 def test_model_card_carries_dataset_release_id(tmp_path: Path) -> None:
     fixture = tmp_path / "fixture.jsonl"

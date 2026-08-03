@@ -88,7 +88,13 @@ class PMCCService:
             baseline.add(record)
         changes = detect_changes(records, baseline)
         chains = TemporalChainBuilder().build(changes)
-        window = build_feature_window(records, baseline, chains, as_of)
+        window = build_feature_window(
+            records,
+            baseline,
+            chains,
+            as_of,
+            feature_names=_model_feature_bases(self._model),
+        )
         hazards, hazard_members, model_name, degradation = self._predict_hazards(window)
         cumulative = hazards_to_cumulative(hazards)
         risk = cumulative_risk_for_horizons(hazards)
@@ -276,3 +282,16 @@ def _best_chain(chains: Sequence[TemporalChain]) -> TemporalChain | None:
     if not chains:
         return None
     return max(chains, key=lambda chain: float(chain.provenance.get("score", 0.0)))
+
+
+def _model_feature_bases(model: object) -> tuple[str, ...] | None:
+    """Use a fitted model's full raw schema so missing fields stay masked."""
+    names = getattr(model, "feature_names", ())
+    if not isinstance(names, (tuple, list)):
+        return None
+    bases = tuple(
+        name[:-len(":directional_z")]
+        for name in names
+        if isinstance(name, str) and name.endswith(":directional_z")
+    )
+    return tuple(sorted(set(bases))) or None
