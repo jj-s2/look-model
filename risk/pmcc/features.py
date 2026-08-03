@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from math import isfinite, nan
+from math import isfinite, isnan, nan
 from numbers import Real
 from typing import Sequence
 
@@ -52,8 +52,11 @@ class FeatureWindow:
                     raise ValueError("missing_mask values must be booleans")
                 if isinstance(value, bool) or not isinstance(value, Real):
                     raise ValueError("feature values must be numeric or NaN for missing data")
-                if missing != (not isfinite(float(value))):
-                    raise ValueError("missing feature values must be NaN and finite values must not be masked")
+                numeric_value = float(value)
+                if missing and not isnan(numeric_value):
+                    raise ValueError("missing feature values must be NaN")
+                if not missing and not isfinite(numeric_value):
+                    raise ValueError("unmasked feature values must be finite")
                 if isinstance(score, bool) or not isinstance(score, Real) or not isfinite(float(score)) or not 0.0 <= float(score) <= 1.0:
                     raise ValueError("feature quality must be finite within [0, 1]")
                 if missing and float(score) != 0.0:

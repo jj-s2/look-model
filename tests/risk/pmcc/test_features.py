@@ -114,3 +114,14 @@ def test_feature_window_requires_exactly_fourteen_daily_rows():
             quality=((1.0,),) * 13,
             feature_names=("x",),
         )
+
+
+@pytest.mark.parametrize("value", (float("inf"), float("-inf")))
+def test_feature_window_rejects_infinite_values_instead_of_marking_them_missing(value):
+    with pytest.raises(ValueError, match="NaN|finite"):
+        FeatureWindow(
+            values=((value,),) * 14,
+            missing_mask=((True,),) * 14,
+            quality=((0.0,),) * 14,
+            feature_names=("x",),
+        )
