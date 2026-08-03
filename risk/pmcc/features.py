@@ -72,6 +72,7 @@ def build_feature_window(
     baseline: BaselineManager,
     chains: Sequence[TemporalChain],
     as_of: date,
+    feature_names: Sequence[str] | None = None,
 ) -> FeatureWindow:
     """Build a locally ordered 14-day window without treating absence as normal.
 
@@ -90,7 +91,7 @@ def build_feature_window(
         raise ValueError("chains must contain TemporalChain records")
     _validate_calendar_ownership(records, tuple(chains))
     by_day = {item.observed_at.date(): item for item in records}
-    feature_names = _feature_names(records)
+    feature_names = _feature_names(records) if feature_names is None else _feature_names_from_bases(feature_names)
     values: list[tuple[float, ...]] = []
     masks: list[tuple[bool, ...]] = []
     qualities: list[tuple[float, ...]] = []
@@ -105,7 +106,14 @@ def build_feature_window(
 
 def _feature_names(records: Sequence[DailyObservation]) -> tuple[str, ...]:
     raw_names = sorted({name for record in records for name in record.features})
-    return tuple(name for raw in raw_names for name in (f"{raw}:directional_z", f"{raw}:raw")) + _DERIVED_FEATURES
+    return _feature_names_from_bases(raw_names)
+
+
+def _feature_names_from_bases(raw_names: Sequence[str]) -> tuple[str, ...]:
+    names = tuple(sorted(raw_names))
+    if not names or any(not isinstance(name, str) or not name for name in names):
+        raise ValueError("feature_names must contain non-empty strings")
+    return tuple(name for raw in names for name in (f"{raw}:directional_z", f"{raw}:raw")) + _DERIVED_FEATURES
 
 
 def _row_for_day(

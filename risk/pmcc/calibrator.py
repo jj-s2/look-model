@@ -10,6 +10,9 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 
 import numpy as np
+import json
+from pathlib import Path
+from typing import Mapping
 
 from .features import FeatureWindow
 from .survival import SurvivalLabel
@@ -108,6 +111,66 @@ class RuleSurvivalCalibrator:
             "tcn_evaluation_claim": None,
         }
 
+    def to_artifact(self) -> dict[str, object]:
+        """Return a portable JSON-safe fitted estimator.
+
+        Only scaler statistics and logistic coefficients are persisted; no
+        pickle or executable object graph is used.  The resulting mapping can
+        be passed to :meth:`from_artifact` on an inference host.
+        """
+        if not self._estimators:
+            raise RuntimeError("RuleSurvivalCalibrator must be fitted before export")
+        return {
+            "artifact_type": "pmcc.rule_survival.v1",
+            "random_seed": self.random_seed,
+            "evidence_tier": self.evidence_tier,
+            "feature_schema": list(self.feature_names),
+            "summary_schema": [
+                *[f"{name}:weighted_mean" for name in self.feature_names],
+                *[f"{name}:coverage" for name in self.feature_names],
+                *[f"{name}:mean_quality" for name in self.feature_names],
+            ],
+            "estimators": [_estimator_to_artifact(estimator) for estimator in self._estimators],
+            "metadata": self.metadata(),
+        }
+
+    @classmethod
+    def from_artifact(cls, artifact: Mapping[str, object]) -> "RuleSurvivalCalibrator":
+        """Load a JSON-safe artifact without importing scikit-learn."""
+        if not isinstance(artifact, Mapping) or artifact.get("artifact_type") != "pmcc.rule_survival.v1":
+            raise ValueError("unsupported PMCC calibrator artifact")
+        schema = artifact.get("feature_schema")
+        estimators = artifact.get("estimators")
+        if not isinstance(schema, list) or not schema or any(not isinstance(name, str) for name in schema):
+            raise ValueError("artifact feature_schema must be a non-empty string list")
+        if not isinstance(estimators, list) or len(estimators) != 7:
+            raise ValueError("artifact must contain seven estimators")
+        evidence_tier = artifact.get("evidence_tier", "real_device_longitudinal")
+        if not isinstance(evidence_tier, str):
+            raise ValueError("artifact evidence_tier must be a string")
+        seed = artifact.get("random_seed", 42)
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise ValueError("artifact random_seed must be an integer")
+        model = cls(random_seed=seed, evidence_tier=evidence_tier)
+        model.feature_names = tuple(schema)
+        model._estimators = tuple(_estimator_from_artifact(item) for item in estimators)
+        return model
+
+    def save_artifact(self, path: str | Path) -> None:
+        """Write :meth:`to_artifact` as UTF-8 JSON for configured inference."""
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(self.to_artifact(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+    @classmethod
+    def load_artifact(cls, path: str | Path) -> "RuleSurvivalCalibrator":
+        """Load an artifact written by :meth:`save_artifact`."""
+        try:
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("unable to read PMCC calibrator artifact") from error
+        return cls.from_artifact(payload)
+
 
 class OptionalTCNSurvivalModel:
     """Optional placeholder that never imports PyTorch during normal import."""
@@ -160,6 +223,64 @@ def _make_logistic_estimator(random_seed: int) -> Any:
 def _positive_probability(model: Any, vector: np.ndarray) -> float:
     probabilities = model.predict_proba(vector)
     return float(probabilities[0, 1])
+
+
+def _estimator_to_artifact(model: Any) -> dict[str, object]:
+    """Extract portable scaler/logistic parameters from sklearn or NumPy."""
+    if isinstance(model, _NumpyBalancedLogistic):
+        if model._mean is None or model._scale is None or model._weights is None:
+            raise RuntimeError("logistic estimator must be fitted before export")
+        return {
+            "kind": "standardized_logistic",
+            "mean": model._mean.tolist(),
+            "scale": model._scale.tolist(),
+            "weights": model._weights.tolist(),
+            "intercept": model._intercept,
+        }
+    steps = getattr(model, "named_steps", None)
+    if isinstance(steps, Mapping):
+        scaler = steps.get("standardscaler")
+        classifier = steps.get("logisticregression")
+        if scaler is not None and classifier is not None and hasattr(scaler, "mean_") and hasattr(classifier, "coef_"):
+            return {
+                "kind": "standardized_logistic",
+                "mean": np.asarray(scaler.mean_, dtype=float).tolist(),
+                "scale": np.asarray(scaler.scale_, dtype=float).tolist(),
+                "weights": np.asarray(classifier.coef_[0], dtype=float).tolist(),
+                "intercept": float(np.asarray(classifier.intercept_, dtype=float)[0]),
+            }
+    raise ValueError("unsupported estimator type; expected standardized logistic parameters")
+
+
+def _estimator_from_artifact(artifact: object) -> "_PortableLogistic":
+    if not isinstance(artifact, Mapping) or artifact.get("kind") != "standardized_logistic":
+        raise ValueError("unsupported serialized estimator")
+    try:
+        mean = np.asarray(artifact["mean"], dtype=float)
+        scale = np.asarray(artifact["scale"], dtype=float)
+        weights = np.asarray(artifact["weights"], dtype=float)
+        intercept = float(artifact["intercept"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("invalid serialized estimator coefficients") from error
+    if mean.ndim != 1 or scale.ndim != 1 or weights.ndim != 1 or len(mean) != len(scale) or len(mean) != len(weights):
+        raise ValueError("serialized estimator coefficient dimensions do not match")
+    if not np.all(np.isfinite(mean)) or not np.all(np.isfinite(scale)) or not np.all(scale > 0) or not np.all(np.isfinite(weights)) or not np.isfinite(intercept):
+        raise ValueError("serialized estimator coefficients must be finite")
+    return _PortableLogistic(mean=mean, scale=scale, weights=weights, intercept=intercept)
+
+
+@dataclass(frozen=True)
+class _PortableLogistic:
+    mean: np.ndarray
+    scale: np.ndarray
+    weights: np.ndarray
+    intercept: float
+
+    def predict_proba(self, values: np.ndarray) -> np.ndarray:
+        matrix = (values - self.mean) / self.scale
+        logits = np.clip(matrix @ self.weights + self.intercept, -30.0, 30.0)
+        positive = 1.0 / (1.0 + np.exp(-logits))
+        return np.column_stack((1.0 - positive, positive))
 
 
 @dataclass

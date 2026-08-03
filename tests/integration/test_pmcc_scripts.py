@@ -109,11 +109,62 @@ def test_train_script_writes_non_promoted_synthetic_model_card(tmp_path: Path) -
     assert completed.returncode == 0, completed.stderr
     card = json.loads((model_dir / "model-card.json").read_text(encoding="utf-8"))
     metrics = json.loads((model_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert (model_dir / "model.json").exists()
     assert card["promoted"] is False
     assert card["evidence_tier"] == "synthetic_research"
     assert card["clinical_use"] is False
-    assert card["feature_schema"]
+    assert any(name.endswith(":directional_z") for name in card["feature_schema"])
+    assert any(name.endswith(":raw") for name in card["feature_schema"])
+    assert "chain_strength" in card["feature_schema"]
     assert metrics["release_metrics"] is None
+
+
+def test_portable_model_artifact_round_trips_and_is_accepted_by_service(tmp_path: Path) -> None:
+    fixture = tmp_path / "fixture.jsonl"
+    model_dir = tmp_path / "model"
+    assert _run("scripts/generate_pmcc_fixture.py", "--output", str(fixture), "--seed", "42").returncode == 0
+    assert _run("scripts/train_pmcc.py", "--input", str(fixture), "--output", str(model_dir), "--seed", "42").returncode == 0
+
+    from risk.pmcc.calibrator import RuleSurvivalCalibrator
+    from risk.pmcc.features import FeatureWindow
+    from risk.pmcc.schema import DailyObservation
+    from risk.pmcc.service import PMCCService
+
+    payload = json.loads((model_dir / "model.json").read_text(encoding="utf-8"))
+    loaded = RuleSurvivalCalibrator.from_artifact(payload)
+    reloaded = RuleSurvivalCalibrator.load_artifact(model_dir / "model.json")
+    assert loaded.metadata() == reloaded.metadata()
+    schema = tuple(payload["feature_schema"])
+    window = FeatureWindow(
+        values=tuple(tuple(1.0 for _ in schema) for _ in range(14)),
+        missing_mask=tuple(tuple(False for _ in schema) for _ in range(14)),
+        quality=tuple(tuple(1.0 for _ in schema) for _ in range(14)),
+        feature_names=schema,
+    )
+    assert loaded.predict_hazards(window) == reloaded.predict_hazards(window)
+
+    observation = DailyObservation.from_dict(_read_jsonl(fixture)[0]["observation"])
+    forecast = PMCCService(model=model_dir / "model.json", observations=(observation,)).forecast(
+        observation.subject_id, observation.observed_at.date()
+    )
+    assert forecast.provenance["model"] == "configured_model"
+
+
+def test_model_card_carries_dataset_release_id(tmp_path: Path) -> None:
+    fixture = tmp_path / "fixture.jsonl"
+    dataset = tmp_path / "dataset.jsonl"
+    model_dir = tmp_path / "model"
+    assert _run("scripts/generate_pmcc_fixture.py", "--output", str(fixture), "--seed", "42").returncode == 0
+    built = _run(
+        "scripts/build_pmcc_dataset.py", "--input", str(fixture), "--output", str(dataset),
+        "--evidence-tier", "synthetic_research",
+    )
+    assert built.returncode == 0, built.stderr
+    trained = _run("scripts/train_pmcc.py", "--input", str(dataset), "--output", str(model_dir), "--seed", "42")
+    assert trained.returncode == 0, trained.stderr
+    card = json.loads((model_dir / "model-card.json").read_text(encoding="utf-8"))
+    source_records = _read_jsonl(dataset)
+    assert card["release_id"] == source_records[0]["release_id"]
 
 
 def test_train_script_refuses_records_without_labels(tmp_path: Path) -> None:

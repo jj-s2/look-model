@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import sys
 from pathlib import Path
 from typing import Any, Mapping
@@ -20,7 +19,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from risk.pmcc.calibrator import RuleSurvivalCalibrator
-from risk.pmcc.features import FeatureWindow
+from risk.pmcc.baseline import BaselineManager
+from risk.pmcc.features import FeatureWindow, build_feature_window
 from risk.pmcc.schema import DailyObservation, EvidenceTier
 from risk.pmcc.survival import SurvivalLabel
 
@@ -93,35 +93,35 @@ def _label(record: Mapping[str, Any]) -> SurvivalLabel:
     return SurvivalLabel(value.get("event_day"), value.get("censor_day"))
 
 
-def _feature_schema(observations: list[DailyObservation]) -> tuple[str, ...]:
+def _feature_bases(observations: list[DailyObservation]) -> tuple[str, ...]:
     names = sorted({name for observation in observations for name in observation.features})
     if not names:
         raise ValueError("training records must contain at least one feature")
-    return tuple(f"{name}:raw" for name in names)
+    return tuple(names)
 
 
-def _window(observation: DailyObservation, schema: tuple[str, ...]) -> FeatureWindow:
-    row: list[float] = []
-    missing: list[bool] = []
-    quality: list[float] = []
-    for name in schema:
-        feature = name.removesuffix(":raw")
-        value = observation.features.get(feature)
-        is_available = observation.availability.get(feature, True) and value is not None
-        if is_available:
-            row.append(float(value))
-            missing.append(False)
-            quality.append(float(observation.quality.get(feature, 0.0)))
-        else:
-            row.append(math.nan)
-            missing.append(True)
-            quality.append(0.0)
-    return FeatureWindow(
-        values=tuple(tuple(row) for _ in range(14)),
-        missing_mask=tuple(tuple(missing) for _ in range(14)),
-        quality=tuple(tuple(quality) for _ in range(14)),
-        feature_names=schema,
-    )
+def _training_windows(observations: list[DailyObservation], feature_bases: tuple[str, ...]) -> tuple[FeatureWindow, ...]:
+    """Build service-compatible windows with only prior-day baseline data."""
+    by_subject: dict[str, list[DailyObservation]] = {}
+    for observation in observations:
+        by_subject.setdefault(observation.subject_id, []).append(observation)
+    windows: list[FeatureWindow] = []
+    for observation in observations:
+        history = sorted(
+            (item for item in by_subject[observation.subject_id] if item.observed_at.date() < observation.observed_at.date()),
+            key=lambda item: item.observed_at,
+        )
+        baseline = BaselineManager()
+        for prior in history:
+            baseline.add(prior)
+        # Include the target day in the fixed window, but never in baseline
+        # updates used to compute its directional z values.
+        windows.append(
+            build_feature_window(
+                (*history, observation), baseline, (), observation.observed_at.date(), feature_names=feature_bases
+            )
+        )
+    return tuple(windows)
 
 
 def _artifact_id(records: list[dict[str, Any]]) -> str:
@@ -132,7 +132,7 @@ def _artifact_id(records: list[dict[str, Any]]) -> str:
     return f"pmcc-model-{digest.hexdigest()[:16]}"
 
 
-def train(records: list[dict[str, Any]], seed: int) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def train(records: list[dict[str, Any]], seed: int) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], RuleSurvivalCalibrator]:
     observations: list[DailyObservation] = []
     labels: list[SurvivalLabel] = []
     tiers: set[EvidenceTier] = set()
@@ -148,8 +148,9 @@ def train(records: list[dict[str, Any]], seed: int) -> tuple[dict[str, Any], dic
     if len(tiers) != 1:
         raise ValueError("training input must contain exactly one evidence tier")
     tier = next(iter(tiers))
-    schema = _feature_schema(observations)
-    windows = tuple(_window(observation, schema) for observation in observations)
+    feature_bases = _feature_bases(observations)
+    windows = _training_windows(observations, feature_bases)
+    schema = windows[0].feature_names
     model = RuleSurvivalCalibrator(random_seed=seed, evidence_tier=tier.value).fit(windows, labels)
     promoted = bool(promoted_inputs and tier not in NON_RELEASE_TIERS)
     artifact_id = _artifact_id(records)
@@ -165,7 +166,13 @@ def train(records: list[dict[str, Any]], seed: int) -> tuple[dict[str, Any], dic
         "training_examples": len(records),
         "subject_level_split_required": True,
         "tcn_evaluation_claim": None,
+        "artifact_loader": "RuleSurvivalCalibrator.load_artifact(path)",
     }
+    release_ids = {record.get("release_id") for record in records if record.get("release_id") is not None}
+    if len(release_ids) > 1:
+        raise ValueError("training input must belong to one release_id")
+    if release_ids:
+        model_card["release_id"] = next(iter(release_ids))
     eligible_for_release_metrics = tier not in NON_RELEASE_TIERS and promoted
     metrics = {
         "artifact_id": artifact_id,
@@ -185,7 +192,7 @@ def train(records: list[dict[str, Any]], seed: int) -> tuple[dict[str, Any], dic
         "feature_schema": list(schema),
         "contains_absolute_paths": False,
     }
-    return model_card, metrics, provenance
+    return model_card, metrics, provenance, model
 
 
 def _write_json(path: Path, value: Mapping[str, Any]) -> None:
@@ -198,11 +205,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", required=True, type=Path, help="model artifact directory")
     parser.add_argument("--seed", default=42, type=int, help="deterministic model seed")
     args = parser.parse_args(argv)
-    card, metrics, provenance = train(read_jsonl(args.input), args.seed)
+    card, metrics, provenance, model = train(read_jsonl(args.input), args.seed)
     args.output.mkdir(parents=True, exist_ok=True)
     _write_json(args.output / "model-card.json", card)
     _write_json(args.output / "metrics.json", metrics)
     _write_json(args.output / "provenance.json", provenance)
+    model.save_artifact(args.output / "model.json")
     return 0
 
 
