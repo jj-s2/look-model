@@ -1,4 +1,4 @@
-from scripts.extract_gmdcsa24_ultralytics_pose import _cache_name, parse_class_segments, pad_or_sample_pose
+from scripts.extract_gmdcsa24_ultralytics_pose import _cache_name, _event_group_id, parse_class_segments, pad_or_sample_pose
 
 
 def test_parse_class_segments_extracts_official_intervals():
@@ -17,3 +17,7 @@ def test_pad_or_sample_pose_keeps_masked_shape():
 
 def test_cache_name_keeps_same_stem_across_categories_unique():
     assert _cache_name("subject-1", "ADL", "01") != _cache_name("subject-1", "Fall", "01")
+
+
+def test_event_group_id_keeps_subject_and_category_isolated():
+    assert _event_group_id("subject-1", "ADL", "01") != _event_group_id("subject-2", "ADL", "01")

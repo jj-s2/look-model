@@ -80,6 +80,8 @@ def _resolve_feature_path(root: Path, clip: Mapping[str, object]) -> Path:
 
 
 def _real_batches(torch, device, lock: Mapping[str, object], split: Mapping[str, object], root: Path):
+    from risk.phase_model.normalization import normalize_pose_array
+
     clips = {str(item["clip_id"]): item for item in lock.get("clips", []) if isinstance(item, Mapping) and "clip_id" in item}
     train_ids = split.get("partitions", {}).get("train", [])
     samples = []
@@ -92,10 +94,10 @@ def _real_batches(torch, device, lock: Mapping[str, object], split: Mapping[str,
             raise RuntimeError("real training requires extracted .npz/.npy pose features; raw video was not silently converted")
         if path.suffix.lower() == ".npz":
             data = __import__("numpy").load(path)
-            samples.append((data["short_embedding"], data["long_pose"], clip))
+            samples.append((data["short_embedding"], normalize_pose_array(data["long_pose"]), clip))
         else:
             data = __import__("numpy").load(path, allow_pickle=False)
-            samples.append((data, data, clip))
+            samples.append((data, normalize_pose_array(data), clip))
     if not samples:
         raise RuntimeError("no trainable pose-feature samples found in frozen dataset lock")
     phase_names = ["normal_adl", "prefall_abnormal", "descending", "impact", "fallen", "recovering"]

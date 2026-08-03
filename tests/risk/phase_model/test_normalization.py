@@ -4,7 +4,7 @@ import pytest
 
 from risk.phase_model.schema import PoseObservation
 from risk.phase_model.windows import DualWindow
-from risk.phase_model.normalization import normalize_pose_window
+from risk.phase_model.normalization import normalize_pose_array, normalize_pose_window
 
 
 def _observation(scale=1.0, offset=(0.0, 0.0)):
@@ -40,3 +40,17 @@ def test_invisible_coordinates_are_masked_not_counted_as_real_zero():
     result = normalize_pose_window(DualWindow(short=(item,), long=()))
     assert result.visible_mask[0][-1] is False
     assert result.frame_valid[0] is True
+
+
+def test_pose_array_normalization_is_scale_and_translation_invariant():
+    import numpy as np
+
+    first = np.zeros((2, 17, 3), dtype=np.float32)
+    first[:, :, 2] = 1.0
+    first[:, 11, :2] = (10.0, 20.0)
+    first[:, 12, :2] = (12.0, 20.0)
+    first[:, 5, :2] = (10.0, 0.0)
+    first[:, 6, :2] = (12.0, 0.0)
+    second = first.copy()
+    second[:, :, :2] = second[:, :, :2] * 2.0 + (100.0, 50.0)
+    assert normalize_pose_array(first) == pytest.approx(normalize_pose_array(second))

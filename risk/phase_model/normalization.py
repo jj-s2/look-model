@@ -10,6 +10,45 @@ from .schema import PoseObservation
 from .windows import DualWindow
 
 
+def normalize_pose_array(pose: object):
+    """Normalize a COCO-17 ``(time, joints, xy+confidence)`` pose cache.
+
+    The cache extractor emits pixel coordinates.  Person-centering on the two
+    hips and scaling by shoulder-to-hip distance removes camera translation and
+    subject size while retaining confidence as the third channel.
+    """
+    try:
+        import numpy as np
+    except ModuleNotFoundError as error:
+        raise RuntimeError("NumPy is required to normalize pose arrays") from error
+    array = np.asarray(pose, dtype=np.float32).copy()
+    if array.ndim != 3 or array.shape[1:] != (17, 3):
+        raise ValueError("pose must have shape (time, 17, 3)")
+    for frame in array:
+        visible = frame[:, 2] >= 0.25
+        hip_visible = bool(visible[11] and visible[12])
+        shoulder_visible = bool(visible[5] and visible[6])
+        if hip_visible:
+            origin = (frame[11, :2] + frame[12, :2]) / 2.0
+        elif np.any(visible):
+            origin = frame[visible, :2].mean(axis=0)
+        else:
+            frame[:, :2] = 0.0
+            continue
+        if hip_visible and shoulder_visible:
+            shoulder = (frame[5, :2] + frame[6, :2]) / 2.0
+            scale = float(np.linalg.norm(shoulder - origin))
+        else:
+            spread = frame[visible, :2] - origin
+            scale = float(np.sqrt(np.mean(spread * spread))) if spread.size else 0.0
+        if not np.isfinite(scale) or scale <= 1e-6:
+            frame[:, :2] = 0.0
+            continue
+        frame[:, :2] = (frame[:, :2] - origin) / scale
+        frame[~visible, :2] = 0.0
+    return array
+
+
 @dataclass(frozen=True)
 class NormalizedPoseWindow:
     coordinates: tuple[tuple[tuple[float, float], ...], ...]

@@ -38,6 +38,11 @@ def _cache_name(subject: str, category: str, stem: str) -> str:
     return f"{subject}_{category.lower()}_{stem}.npz"
 
 
+def _event_group_id(subject: str, category: str, stem: str) -> str:
+    """Keep repeated numeric video names from different subjects independent."""
+    return f"{subject}:{category.lower()}:{stem}"
+
+
 def _video_pose(model, video: Path, *, device: str) -> np.ndarray:
     results = model.predict(source=str(video), stream=True, device=device, verbose=False, imgsz=512, vid_stride=2)
     frames = []
@@ -78,7 +83,7 @@ def extract_dataset(dataset_root: Path, output_root: Path, *, device: str = "0",
         if fall_segments:
             start, end = fall_segments[0][1], fall_segments[0][2]
         relative = _cache_name(subject, category, video.stem)
-        row = {"media_path": relative, "subject_id": subject, "camera_id": "gmdcsa24", "event_group_id": video.stem, "start_sec": start, "end_sec": end, "label": "Falling" if fall_segments else "ADL"}
+        row = {"media_path": relative, "subject_id": subject, "camera_id": "gmdcsa24", "event_group_id": _event_group_id(subject, category, video.stem), "start_sec": start, "end_sec": end, "label": "Falling" if fall_segments else "ADL"}
         if (output_root / relative).exists():
             if relative not in existing_rows:
                 with metadata.open("a", encoding="utf-8", newline="") as handle:
