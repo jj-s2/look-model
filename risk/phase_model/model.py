@@ -80,3 +80,30 @@ class PhaseAwareFusionModel:
     def parameters(self):
         modules = (self.long_branch.network, self.long_branch.pool, self.short_projection, self.long_projection, self.phase_head, self.fall_head, self.prefall_head, self.recovery_head, self.abstain_head)
         return (parameter for module in modules for parameter in module.parameters())
+
+    def to(self, device):
+        modules = (self.long_branch.network, self.long_branch.pool, self.short_projection, self.long_projection, self.phase_head, self.fall_head, self.prefall_head, self.recovery_head, self.abstain_head)
+        for module in modules:
+            module.to(device)
+        return self
+
+    def train(self, mode: bool = True):
+        modules = (self.long_branch.network, self.long_branch.pool, self.short_projection, self.long_projection, self.phase_head, self.fall_head, self.prefall_head, self.recovery_head, self.abstain_head)
+        for module in modules:
+            module.train(mode)
+        return self
+
+    def eval(self):
+        return self.train(False)
+
+    def state_dict(self):
+        return {
+            "long_branch": self.long_branch.network.state_dict(),
+            "short_projection": self.short_projection.state_dict(),
+            "long_projection": self.long_projection.state_dict(),
+            "phase_head": self.phase_head.state_dict(),
+            "fall_head": self.fall_head.state_dict(),
+            "prefall_head": self.prefall_head.state_dict(),
+            "recovery_head": self.recovery_head.state_dict(),
+            "abstain_head": self.abstain_head.state_dict(),
+        }
