@@ -31,6 +31,7 @@ def _write_dataset(path: Path, tier: str = "real_public") -> None:
                 "baseline": {"24h": min(1.0, score * 0.6), "72h": min(1.0, score * 0.7), "7d": min(1.0, score * 0.8)},
                 "full": {"24h": score * 0.8, "72h": score * 0.9, "7d": score},
             },
+            "prediction_provenance": {"out_of_fold": True, "model_artifact_id": "model-1", "release_id": "release-1"},
             "abstained": subject == "dave", "coverage": 0.6 if subject != "dave" else 0.4,
             "quality": 0.9 if subject != "dave" else 0.4, "subgroup": "female" if subject in {"alice", "carol"} else "male",
         })
@@ -132,6 +133,45 @@ def test_censoring_excludes_unknown_horizon_outcomes_from_metrics(tmp_path: Path
     horizon = json.loads(output.read_text(encoding="utf-8"))["model_rows"]["full"]["horizons"]["72h"]
     assert horizon["censored_before_horizon"] == 1
     assert horizon["evaluated_records"] == 2  # dave abstains; bob is censored at day 1
+
+
+def test_event_positive_remains_known_after_event_day_even_if_censor_day_is_early(tmp_path: Path) -> None:
+    dataset, model, output = tmp_path / "data.jsonl", tmp_path / "model", tmp_path / "evaluation.json"
+    _write_dataset(dataset)
+    _write_model(model)
+    rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines()]
+    event = json.loads(json.dumps(rows[0]))
+    event["observation"]["subject_id"] = "early-event"
+    event["subject_split_id"] = "subject-early-event"
+    event["label"] = {"event_day": 1, "censor_day": 1}
+    rows.append(event)
+    dataset.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+    completed = _run("scripts/evaluate_pmcc.py", "--input", str(dataset), "--model", str(model), "--output", str(output))
+    assert completed.returncode == 0, completed.stderr
+    horizon = json.loads(output.read_text(encoding="utf-8"))["model_rows"]["full"]["horizons"]["72h"]
+    assert horizon["censored_before_horizon"] == 0
+    assert horizon["evaluated_records"] == 4  # Alice, Bob, Carol and the observed event.
+
+
+def test_real_scores_require_verified_out_of_fold_prediction_provenance(tmp_path: Path) -> None:
+    dataset, model, output = tmp_path / "data.jsonl", tmp_path / "model", tmp_path / "evaluation.json"
+    _write_dataset(dataset)
+    _write_model(model)
+    rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines()]
+    rows[0].pop("prediction_provenance")
+    dataset.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    missing = _run("scripts/evaluate_pmcc.py", "--input", str(dataset), "--model", str(model), "--output", str(output))
+    assert missing.returncode != 0
+    assert "prediction_provenance" in missing.stderr.lower()
+
+    _write_dataset(dataset)
+    rows = [json.loads(line) for line in dataset.read_text(encoding="utf-8").splitlines()]
+    rows[0]["prediction_provenance"]["out_of_fold"] = False
+    dataset.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    wrong_artifact = _run("scripts/evaluate_pmcc.py", "--input", str(dataset), "--model", str(model), "--output", str(output))
+    assert wrong_artifact.returncode != 0
+    assert "out_of_fold" in wrong_artifact.stderr.lower()
 
 
 def test_real_scoreless_records_are_rejected_and_synthetic_scoreless_metrics_are_unavailable(tmp_path: Path) -> None:

@@ -130,6 +130,17 @@ def _predictions(record: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]]
     return parsed
 
 
+def _verify_prediction_provenance(record: Mapping[str, Any], model_card: Mapping[str, Any], release_id: str, required: bool) -> bool:
+    provenance = record.get("prediction_provenance")
+    valid = (isinstance(provenance, Mapping)
+             and provenance.get("out_of_fold") is True
+             and provenance.get("model_artifact_id") == model_card.get("artifact_id")
+             and (provenance.get("release_id") is None or provenance.get("release_id") == release_id))
+    if required and not valid:
+        raise ValueError("real/release scored rows require verified prediction_provenance with out_of_fold=true and matching model_artifact_id")
+    return valid
+
+
 def _auc(scores: list[float], labels: list[int]) -> float | None:
     positives, negatives = sum(labels), len(labels) - sum(labels)
     if not positives or not negatives:
@@ -180,7 +191,7 @@ def _unavailable_metrics(reason: str) -> dict[str, float | int | str | None]:
 def _metrics(records: list[dict[str, Any]], model_name: str, horizon_days: int, horizon: str) -> dict[str, float | int | str | None]:
     if any(record["_predictions"] is None for record in records):
         return _unavailable_metrics("scored_predictions_unavailable")
-    known = [record for record in records if _label(record)[1] >= horizon_days]
+    known = [record for record in records if _label(record)[0] is not None or _label(record)[1] >= horizon_days]
     eligible = [record for record in known if not bool(record.get("abstained", False))]
     scores = [record["_predictions"][model_name][horizon] for record in eligible]
     labels = [int((_label(record)[0] or 99) <= horizon_days) for record in eligible]
@@ -199,7 +210,7 @@ def _metrics(records: list[dict[str, Any]], model_name: str, horizon_days: int, 
             "alert_recall": None if not positives else tp / positives,
             "false_alerts_per_subject_day": fp / subject_days,
             "lead_time_days": None if not lead_times else sum(lead_times) / len(lead_times),
-            "evaluated_records": len(eligible), "censored_before_horizon": len(records) - len(known), "reason": None}
+            "evaluated_records": len(eligible), "censored_before_horizon": sum(1 for record in records if _label(record)[0] is None and _label(record)[1] < horizon_days), "reason": None}
 
 
 def _split_audit(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -283,13 +294,17 @@ def evaluate(records: list[dict[str, Any]], model_card: Mapping[str, Any]) -> di
     missing_scores = any(record["_predictions"] is None for record in records)
     if missing_scores and tier not in NON_RELEASE_TIERS:
         raise ValueError("scored predictions are required for real/release evaluation")
+    scored_prediction_provenance_verified = all(
+        record["_predictions"] is None or _verify_prediction_provenance(record, model_card, release_id, tier not in NON_RELEASE_TIERS)
+        for record in records
+    )
     model_names = ["baseline", "full"] if missing_scores else sorted({name for record in records for name in record["_predictions"].keys()})
     evaluated_records, split_metadata = _outer_held_out_records(records, model_names)
     model_rows = {name: {"horizons": {horizon: _metrics(evaluated_records, name, days, horizon) for horizon, days in HORIZONS}} for name in model_names}
-    non_release = tier in NON_RELEASE_TIERS or model_card.get("promoted") is not True
+    non_release = tier in NON_RELEASE_TIERS or model_card.get("promoted") is not True or not scored_prediction_provenance_verified
     return {"schema_version": "pmcc.evaluation.v1", "claim_boundary": "research_only" if non_release else "research_evaluation_not_clinical",
             "release_metrics_eligible": not non_release, "split_strategy": "subject_grouped_outer_with_inner_calibration",
-            "leakage_check": _split_audit(records), "split_metadata": split_metadata, "provenance": {"release_id": release_id, "dataset_id": records[0].get("dataset_id"), "model_artifact_id": model_card.get("artifact_id"), "evidence_tier": tier, "promoted": False if non_release else True},
+            "leakage_check": _split_audit(records), "split_metadata": split_metadata, "provenance": {"release_id": release_id, "dataset_id": records[0].get("dataset_id"), "model_artifact_id": model_card.get("artifact_id"), "evidence_tier": tier, "promoted": False if non_release else True, "prediction_provenance_verified": scored_prediction_provenance_verified},
             "model_rows": model_rows, "ablations": {name: {"status": "unavailable", "reason": "not separately scored in this artifact"} for name in ABLATIONS},
             "coverage": {"records": len(evaluated_records), "non_abstained_records": sum(not bool(record.get("abstained", False)) for record in evaluated_records), "abstention_rate": sum(bool(record.get("abstained", False)) for record in evaluated_records) / len(evaluated_records)},
             "stratified": _stratified(records), "method": {"outer_split": "subject_grouped", "calibration": "inner_training_folds_only", "association_only": True, "clinical_use": False,
