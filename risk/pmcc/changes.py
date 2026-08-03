@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
 from math import isfinite
 from typing import Sequence
 
@@ -26,9 +26,12 @@ def detect_changes(
     """
     if not isinstance(baseline, BaselineManager):
         raise ValueError("baseline must be a BaselineManager")
-    ordered = tuple(sorted(observations, key=lambda item: item.observed_at))
+    ordered = tuple(observations)
     if not all(isinstance(item, DailyObservation) for item in ordered):
         raise ValueError("observations must contain DailyObservation records")
+    _require_strictly_chronological(
+        tuple(item.observed_at for item in ordered), "observations"
+    )
     if not ordered:
         return ()
     subject_id = ordered[0].subject_id
@@ -90,3 +93,8 @@ def _quality(observation: DailyObservation, feature: str) -> float:
     if not isfinite(value):  # schema already rejects this; retain a defensive boundary.
         return 0.0
     return float(value)
+
+
+def _require_strictly_chronological(timestamps: tuple[datetime, ...], name: str) -> None:
+    if any(later <= earlier for earlier, later in zip(timestamps, timestamps[1:])):
+        raise ValueError(f"{name} must be supplied in strictly chronological order")

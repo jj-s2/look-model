@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from risk.pmcc.chains import TemporalChainBuilder
 from risk.pmcc.schema import ChangeEvent
 
@@ -38,3 +40,11 @@ def test_chain_rejects_reverse_order_and_gaps_over_seventy_two_hours():
 
     assert builder.build((event("step_count", 0), event("sleep_duration_minutes", 1))) == ()
     assert builder.build((event("sleep_duration_minutes", 0), event("step_count", 73))) == ()
+
+
+def test_chain_builder_rejects_descending_event_timestamps():
+    with pytest.raises(ValueError, match="chronological"):
+        TemporalChainBuilder().build((
+            event("sleep_duration_minutes", 1),
+            event("step_count", 0),
+        ))

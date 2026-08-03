@@ -25,15 +25,17 @@ class TemporalChainBuilder:
     def build(self, events: Sequence[ChangeEvent]) -> tuple[TemporalChain, ...]:
         if not all(isinstance(event, ChangeEvent) for event in events):
             raise ValueError("events must contain ChangeEvent records")
+        _require_strictly_chronological(
+            tuple(event.occurred_at for event in events), "events"
+        )
         by_subject: dict[str, list[ChangeEvent]] = {}
         for event in events:
             by_subject.setdefault(event.subject_id, []).append(event)
 
         chains: list[TemporalChain] = []
         for subject_id, subject_events in by_subject.items():
-            ordered = sorted(subject_events, key=lambda event: event.occurred_at)
-            for start_index, event in enumerate(ordered):
-                chains.extend(self._extend(subject_id, ordered, (event,), start_index + 1))
+            for start_index, event in enumerate(subject_events):
+                chains.extend(self._extend(subject_id, subject_events, (event,), start_index + 1))
         return tuple(chains)
 
     def _extend(
@@ -134,3 +136,8 @@ def _bounded(value: object) -> float:
 def _event_id(event: ChangeEvent) -> str:
     value = event.provenance.get("event_id")
     return value if isinstance(value, str) and value else f"{event.feature}:{event.occurred_at.isoformat()}"
+
+
+def _require_strictly_chronological(timestamps: tuple[datetime, ...], name: str) -> None:
+    if any(later <= earlier for earlier, later in zip(timestamps, timestamps[1:])):
+        raise ValueError(f"{name} must be supplied in strictly chronological order")

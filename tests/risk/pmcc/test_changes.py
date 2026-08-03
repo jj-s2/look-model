@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from risk.pmcc.baseline import BaselineManager
 from risk.pmcc.changes import detect_changes
 from risk.pmcc.schema import DailyObservation
@@ -48,3 +50,15 @@ def test_missing_day_never_counts_as_normal_for_persistence():
 
     assert len(events) == 1
     assert events[0].provenance["persistence"] == 2 / 3
+
+
+def test_detect_changes_rejects_descending_observation_timestamps():
+    baseline = BaselineManager(
+        population_priors={"sleep_duration_minutes": (480.0, 10.0)},
+    )
+
+    with pytest.raises(ValueError, match="chronological"):
+        detect_changes((
+            observation(1, {"sleep_duration_minutes": 460.0}),
+            observation(0, {"sleep_duration_minutes": 460.0}),
+        ), baseline)
