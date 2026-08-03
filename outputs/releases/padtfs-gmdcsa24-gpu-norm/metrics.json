@@ -1,0 +1,18 @@
+{
+  "checkpoint_sha256": "6625d0a8482eac96e1e52f3efabddb8f9b7e3b2f00a1dbf40763d5d4f85d9ed5",
+  "demo": false,
+  "device": "cuda",
+  "epochs": 30,
+  "held_out_test": {
+    "samples": 32,
+    "positive_samples": 16,
+    "precision_at_0_5": 0.8,
+    "recall_at_0_5": 0.75,
+    "f1_at_0_5": 0.7741935483870969,
+    "roc_auc": 0.8359375
+  },
+  "promoted": false,
+  "reason": "training checkpoint requires held-out evaluation before promotion",
+  "release_id": "padtfs-gmdcsa24-gpu-norm",
+  "train_loss_last": 0.0005743025103583932
+}

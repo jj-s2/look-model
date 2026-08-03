@@ -1,0 +1,3831 @@
+{
+  "clips": [
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "0284d6c316e38132cf56d45c7015084962738d8b28c06d96b8359a5cf8dd4904",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:fall:11",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_11.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 5.9,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "04b683ae9d4353330059c77fb1b6aa3211918e34e80f54b6a680966be7c5bc95",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:fall:15",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_15.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 7.7,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "056a919b93582410f9891e9dc3a3b6f81fb3ecf221b8b503ffd480c6387a107a",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-3:adl:05",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_05.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "07726df03078397e2ee162a1641dd04790a6a325589c074b360a8d91180b19ca",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-4:adl:01",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_01.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "09a4150c5d1934fb71f2e292e4a40c65be9019d75834123b997678569321977c",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-3:adl:08",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_08.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "09f4dc8468dc38ef55d8aed3022a06da3527fd362cdfe6df41bd7dd51efa4217",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:adl:06",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_06.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "0b1adc6ed32638b31942832db95c36f788570783ef9c98e3db34a59d64e59334",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:fall:08",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_08.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.3,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "0fa184acd76d9a46cc7a277f2efe1e07af3e3f26de4df62cc5f553f96e6b444a",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-2:adl:22",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_22.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "10391a1312ac2fc5ca64639f649cccfb9dbb0bfacc658f2bcdcb8e39d286aff6",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-2:fall:16",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_16.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.8,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "119474d6b520f6aafa2aba0bb554338966c178a3cc1e9ff78b0c7c1af7fa453d",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-2:fall:23",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_23.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.6,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "11d8b3f1da432e1b10fa62f57c2093d4546ecffa65fa6ba3639cface6890791f",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:fall:01",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_01.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.4,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "126ef684de5d5c500c19928650052935e0887732d5ee16374714a4ca85d7512b",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:adl:09",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_09.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "149a67b90224c970c0d05974c3d133fee1acae3b158e0fdd8971a820e05e9551",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-3:fall:14",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_14.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 8.1,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "14e81c832e5fb1a465f7cf5e327b985a8dc381d64e0a3b4350ced6911d503d69",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:fall:18",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_18.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 9.8,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "1638379ad7dd0bdc4f91a57b5754d551830a0b4b0f7d8c1bfee23d90f5e400a5",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:20",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_20.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "1766f13f3dfde5d919c0bb7f3e2fc1d315d7b4161b8eca97c7841f6e50a1e994",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-3:fall:04",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_04.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.2,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "17ef4ae53c9beab0d74e1cb7d8cf60fe2c6bb7066f8201cf3cafe7154b67cf5b",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-4:fall:12",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_12.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.5,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "1c364243c1dba9be97e350ff3397299e44ef48e462e052dff1d1e5da79f1765e",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-3:adl:14",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_14.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "1d8a896b223e3cf37bd4c0a28fb1278dafa64ae040d8b2d7dd014330dfb882c6",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-2:adl:12",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_12.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "1dfc7f22417d97bcf1de03c4aaff2d5e4c3820af5ca343cdf437d06bfb8d6bf6",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-3:adl:13",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_13.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "1e4ce75c951ea0c6dc609ad82420452c8ef2bdb7eeb580ab15720d112414aec5",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-2:fall:05",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_05.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.8,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "2026806bd13fb394deeaf9963faa879c7c32b38a715b4183ddfb7dbe2ade4031",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-1:adl:07",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_07.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "20c36b5739a4bd0ca4001c6a815a7d62cdc03fb299e7be4523d5db1c7b2af673",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:fall:15",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_15.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.8,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "224bababfd2b7b2821f76f59342ce8db4bd876888dc262881f65f3545a3b97fb",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-2:fall:02",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_02.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.7,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "239ddbc0ea02dcd2571226002e4cee06924cd7f63cb16275ab195d8bd679d33f",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:adl:11",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_11.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "26c06a1f1f83ef61482ebe0e8187ff234ae5aa0700f0d08cb1f13b48b01edc95",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-4:fall:16",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_16.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.2,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "28cd9c2c7121aa9a1d9236d4b33fd5d205e78605f9e5a3de49fe27cc80f95119",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-3:adl:22",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_22.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "2d0ae90a7eb3607fa421b45089489890f33a6fd30fbfe5f1f44577b4e62ed44d",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 14.0,
+      "event_group_id": "subject-4:adl:18",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_18.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "2d6ac4eba6df2bdb57b0da6443079e67fd6ee518bcb95eef58d65a3250d24366",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:17",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_17.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "2d6e24ff405f08d73b748273d5ba976bd88299c07598b4823e7dcff5fb9db4ad",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-2:fall:07",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_07.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "31c59cc2e13aebf3fc3f40ddee1f24fb89b2cb5ad47edbee486941022998e6f0",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:fall:11",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_11.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "32fc38de971061459a5787638cf4e1c809205b8bf5aba80e085bba7efb0fe49e",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-4:adl:02",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_02.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "33a7edb31b19e80e1108034904c72ed4fa75c06c9690be057f0b92680b301903",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 2.0,
+      "event_group_id": "subject-4:fall:02",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_02.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.5,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "33cee8d261bbf17f1ea9ee5e71820bc8a90a71c84e06026b06a33cdcd3b081f9",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-3:adl:09",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_09.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "382001987a5f625e55f8630c7a949e6c46f4ce20fec0da5c514c3d9f1d146458",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-4:adl:05",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_05.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "3924c64c3f2135d0c2ba03dc8055e5eef555513c574f9fa0123758a960bc5d58",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-1:adl:06",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_06.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "393b0e5a1eae9174c7cbc22d54f6260e7ab57e1ff922c094d1806b153e0967ed",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-1:fall:04",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_04.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.3,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "3a6b62e1821e56b43ea47ad9e612ab6880be68b1f435c77a60cc2aadc8c3f065",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:02",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_02.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "3db3c8d01ea18cef875326126ee8cba9c9f8511ac05b02d7dd573a8b6b38a406",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-4:fall:15",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_15.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "3f3efe82ee9a0b045da389062d7013a517d0e98e97631ccee5b72c26606521e0",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-4:adl:14",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_14.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "40c5a55a4faaea3c23bf3bab98c5bb886536e6743df96a4f67ded239c97610e1",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:fall:14",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_14.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.4,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "411273f0f8dcbb694c176f9fcacb50ed7e2b4847620c5127692aef27231fedd4",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-1:fall:13",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_13.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.4,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "426444444f04b20e6e7c1b1f6926bf16d405e61997263fea690fdb22d8ceee8a",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:fall:17",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_17.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.8,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "42668f4c0a3341093e08c4920fadbd317a6e148b2392d7850f25ad1b7cef6f01",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-2:fall:17",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_17.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.5,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "472a2ef2c7d6b0f6b069d4ccd03a0497033bcd7eda6c3687059321791fb69678",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-4:adl:19",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_19.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "48355e0b919be5faf5d13c6b56433f75d748bd1979d2d6d22556498861fcd2fe",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:adl:21",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_21.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "4b59efd1df95b3426165d5319072295feaf37693f3bb4a97ee3d8a9130565a44",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-4:fall:05",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_05.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.7,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "4d9f5511a247ebd48c869e78a31b31935416ca3542b68ca0377a0d9520ee3366",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:adl:06",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_06.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "4efcb77f368970391a43358f54dc86569f0a4145891aa5d51f82d3f0a519ec27",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-3:adl:10",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_10.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "4f76543f4821216c12ed2e25ecd87c17e11b095b57d113c48352db4a065bff46",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-3:adl:18",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_18.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "519b7cbbca34522f38edcb6b03519abee2a335866cfaf004329d2ad56b0c2262",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-3:fall:07",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_07.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "51fe0e43e62cc073e60a01761d827fb1029b74e4b111f4ce4bd6e07219d7cbca",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:16",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_16.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "528ad0b82b04644459c31461f38455b2e7d804d01dc3254ecf4b41ce0dfcbc12",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-3:adl:03",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_03.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "53c710eeae9e0cce16fdfc27dac8c0578088996b75991c231ce08dd5d6e2e73d",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:fall:20",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_20.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 7.9,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "54ff2bba9cdc619f5e582e402bf07c27659e84ed0bdf6b868d865e7ee9a21a48",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-3:fall:19",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_19.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "5751d3e573f6f3f5e678f99beb8c8a18bb8302dfde2f46d94c632cb487330f1d",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-4:adl:11",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_11.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "5e8ffd4df93743c9fa418721ba81ffe036761a7d7d2df4f889b821a5cb969029",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-4:adl:09",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_09.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "60935c22c8a567a86a35f10f1ff334c1baabc5dd957e2938f3e31e9af246267a",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:adl:17",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_17.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "6225f69702ad460ed52753ff6d70ead40a69e5fc6ae58bcbb3d2aae3a49d7fb7",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-4:fall:01",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_01.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.8,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "6632dc745ec48b1b0bf39ffc981e28a17108d9403df285ca07c24adc9877469d",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-3:fall:09",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_09.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.3,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "6747d29da86473ec372a9b968b042e5f6c41f3434052a02dc8f338a20a27acfb",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-3:adl:04",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_04.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "6e697d86b34c751104dedce3cb9f392cda7b0b9a1e3dc3c7b9100c26ff11e1a9",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 70.0,
+      "event_group_id": "subject-2:adl:04",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_04.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "6ec4eb62af40ddfb1bdf2a35af8c7d11efb3ece646cc1238e665bc40b9c43fca",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-3:adl:19",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_19.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "6f0c4003fd30ee70484fa5dab2af1d28febdbd898101b180d8cad688ffa37c7b",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-2:fall:10",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_10.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "727718d136b05e333fcf1337ecb8a5c04156ddebd460303db7823b7967aa235a",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-3:adl:12",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_12.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "73b8b81260f659131e3f84450d3a07ddebe189198ad87041c03e7de1c20f1f99",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:adl:13",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_13.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "7467910225ea65d75d7f188040eceae3d438426618ad596dc6251059c0257d58",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.4,
+      "event_group_id": "subject-2:fall:24",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_24.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.3,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "748b0b1eba7d7cfcd78bb66b6b9e701de7e0586a0514c7277588463d236d67b9",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-1:fall:10",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_10.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.7,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "76edf92d3307f1357f8111fa9da83bac22fee1b2fe6849ec3b67bf2939397fe7",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-3:adl:06",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_06.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "786f533b2a147b7cb699c905ac43e0c6c19af4a550432a7157f386499180f8e3",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-3:fall:10",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_10.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.7,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "7996d700c342d6bff83cddf62eb456e84e8b546758942e688c178747ed90afb1",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-3:adl:01",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_01.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "79fb6dc2270ac652c231fb157c559d48ebc51575c384ca441ebf47b2ed6cafe9",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-2:fall:22",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_22.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.3,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "80146ec9ec5229dc93d153d0d6b9341368df04e5dacd158209b284b3230f3ca1",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-3:fall:11",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_11.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 4.7,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "82ec1e9655e2e87b0e4898c714560954f6982daba0409463c7eb5df94b0ab1c8",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:adl:08",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_08.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "838fb4609529b7157dd70e49297959f911dcc3c6842b598b82d85a65584c1942",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 13.0,
+      "event_group_id": "subject-2:adl:07",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_07.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "842a4036f5a494f9c5ad8e2406440b3304aceffbcaa474329851b299cf4b28c2",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:18",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_18.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "85bbce2f521e78c280250944173f5668223fb3867b58bfe065d3dc9a2da7af1b",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 3.0,
+      "event_group_id": "subject-1:adl:10",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_10.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "871c1edd72ed8e38a7459b312f7ee5f3f6d8adfa93276727532aa422021245e9",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-4:adl:15",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_15.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8846a0022a9931626a98eb623ee1f5fc82c47f88a53f6b54aa14136a4a747a0b",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 3.0,
+      "event_group_id": "subject-3:adl:07",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_07.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8a054d50eec9b13f847960cfd7938b80e6ca4db4d1b25842b46e0ed42493518e",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-2:fall:12",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_12.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 6.9,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8a78e035b2b56c315f9488fe813cb2ab91c342c535fde93d01f72de679a74833",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 15.0,
+      "event_group_id": "subject-2:fall:19",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_19.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 8.2,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8a8f24cd730514e3b08ebd1291931d0b83bd8af79628c39fbb9879aa740f181b",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-3:adl:21",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_21.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8becba11370f1bfa8dd1f4b7b8b0afdf4f6588e21cb64e39ad6d63e009718925",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 13.0,
+      "event_group_id": "subject-4:adl:04",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_04.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8c2edd0dc694a13363ef724a2ddf811fe0b84156763df85a04f49f394cd17188",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-3:fall:08",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_08.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "8c5ff0535d7695b4d32088fdbc98c0b48f0454732de2fb266ccc9422f5a0e112",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-4:adl:03",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_03.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "90caf4d5ed09cd53427fec6686e8f8ab2fdaa70d18f591330db306c13ff3fff6",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-3:fall:12",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_12.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.6,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "97962092685b29d6be9e7bffe60f5276d75262d77105e170b5b5868944e6ee4c",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-3:adl:02",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_02.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "997116395e50d7009a540c667f5bd3832c771f9715b98d4d318c5f4bb78ba074",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-1:adl:12",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_12.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9a62d146388624ef51942d21012c0885575a4f22c15efb8139b4e75d45867179",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-3:fall:16",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_16.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.8,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9ae85dd6a16519077f9f394441099e82c04138e18645ea6f8ea07e6755a3a464",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-3:fall:21",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_21.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 5.4,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9bdae88bbaa1a710ea6f50d0a242f534d52f9a56e3df482f6180571f9325ebd6",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-3:adl:17",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_17.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9c8289825c166bbf9d545f6a15365fd5b27eeaba1dba1a60732fdf81e97b8319",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-4:adl:10",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_10.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9d1d19ae0a03b778b8f2c3c4f8ef477ca8ad9a23b2c9e0d7d4a88e9f68bd328b",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:fall:05",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_05.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.8,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9d2ffbe4ad837dad33c2e8c4da7e8f3786b9009782b924abacee65f6824243c7",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:fall:03",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_03.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.7,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9d96393e99e592424ba42ef1335a8d78c362afccc4c2cefa6507cf332549a526",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:fall:06",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_06.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.1,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "9f304e5616ec0c7de1d392607ca7cad5ca13b7a61c3fc69a02b2d89cbda05dde",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-2:fall:08",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_08.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.2,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "a32fd3feb16961b3759f8d99fa3da328e0c00d5da51f8c39606c3e2cae8e8c05",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-3:fall:06",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_06.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "a49cf32de747c050f6f683e78fc9acefbf49dd89cafa6c72b83766b712b14ba3",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-3:adl:20",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_20.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "a4e5048858e719493f89670f71d955a140055fff93991129023ef5956a293185",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:19",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_19.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "a5b1d3257db745e3bca7447a5236e1c399296b2cf04848121d6e8e535dcf5f33",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-4:fall:14",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_14.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.8,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "a959d0b0c076feca7629e4e39c64c1cb460f2fffcaa42fb8d0bc5a2b44881327",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:fall:02",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_02.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.9,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "ac6fa2a4ff6c705c1bbdfa2d8ed795765be96481b6aebefc5015ff906abcc3a5",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:14",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_14.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "ae039937b1aacac1acfabc9798e11b5c511197e589b75c6b2750fa3a8e6837a3",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-1:adl:15",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_15.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "ae940581368c43c9520f1240aa20fa6761399ae617d73921d774a08130ad5b66",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:fall:04",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_04.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.3,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b232f1670174f1c2ea7e136289198b99a4db41b273a608f9d505d4acf88e28c5",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-4:fall:04",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_04.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.2,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b2ca4370ddccd3571ebbfedee5eb35f3534a0f2a395d62a58d7f767d3c55e23c",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:fall:07",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_07.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.1,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b50efedc5185994ffafc54e3327d88ebb7eaf923557872b6f9ab00245b6ba15c",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-4:adl:13",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_13.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b602ded04a1f138529e142968f34eed90b399a0c27492cdc61f85f2668cfa49f",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-4:adl:08",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_08.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b61752059f5de69ee58a0ee0bf9fa258053dcbea3b2bcf8c3bc847ce57b7f1fe",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-4:fall:11",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_11.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.2,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b6ce6764b13db1b67f5fe80658359cdee6c68efaedf0e2f54075911b197295ac",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-3:adl:16",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_16.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b7b44ca8e7369eed689ab85f817a305097d716d6fd713bf2a75676e87b2cfe26",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:fall:12",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_12.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.9,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b7d90bcf5405c5efdf410a2de343094de860db27a2c04a44eae3e148e91a84c0",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-2:fall:21",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_21.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 6.2,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "b9057e0db8c8e40d92a35793035a46a1645b8e4472790f56e1e5cccc77d429e3",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-1:adl:01",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_01.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "bb7ce79725268cd9c281393f7f9c24927f98bad2370879e0f60cc65b2e4d160a",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:fall:06",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_06.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.2,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "bc149c278cbfb03f01cd36c5b3c10d56af152d847e8fc5a2d40980317c6a5d12",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:fall:03",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_03.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.5,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "bd4991d997c01c303f555c3bac5c17e903e2a8943077335a29b4237b35303dbb",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-3:fall:15",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_15.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.9,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "bf0ca0d94e74686ff03bc1c4b3c785fe60c74f617ea2424c0fb184a8590d4944",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:03",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_03.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c224704c91fd3c1719d1f8ba8a0225e8ef9a450e9a468204ed3a28ee2c73c17e",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:fall:09",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_09.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c27a3b310205aec7f40061b6582ad9ed8a3e5a639fd0a4a5a063ed1422bf9b66",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-1:fall:09",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_09.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.7,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c4ebc5a44548949f453dfb9e7e522343626e4dcd5777a5d9bd1ac486386fa8e2",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:01",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_01.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c6f0acd06cb4868e2b7a7cb8c0454be070211a9d281dbdb1daee933212946fff",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-4:fall:07",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_07.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.4,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c867633c0644db6bca78e746180c492a838aaffd1ec5851cf77d75b6c697eef0",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-4:adl:12",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_12.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c9b92a98eff42e8b72ee202ea71aebe165d98f647ece3a39324a73913c98d8ac",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:adl:02",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_02.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "c9cf6c6878c3331d17edbbdc04c5e6e9b555865f2774dab499e2fa1f28a74086",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:adl:04",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_04.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "ce4840ff59f9ddc773f754d7ed2f3ad8477febdc292fa9643d91d0f415eac611",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-2:adl:05",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_05.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "cf25b0dc7bb21692668b4fb0e27cc889c7cadff44352b33dc8d090ec4f3f2e8b",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-4:adl:07",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_07.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "cfe00f986da7d7072a67cfdd6378099c5ba16bae5c4d6cc8501765de51f7458e",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 3.0,
+      "event_group_id": "subject-3:fall:01",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_01.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "d2e83630754a1497885e7c8b4563b634fac66d1abeac1700aded76990ff2d24b",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-3:fall:02",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_02.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "d60ebc64fb2ff80bba48b5e9a7e975b9b78fa3157a248bf9c2ace668c202c163",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-1:adl:09",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_09.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "db0f7c33a3edeaa6b65c62463bb9dfd78746c8c19a54c059045f42cd221ab754",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:adl:14",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_14.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "dbd996709a667a38c5b11bf6765c3664312dab108ae550a5f7582dd1ba1c06e5",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-1:fall:14",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_14.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.3,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "de3cc12378b1dd9d5d0e7ca6ec08697e69deb3827689dc6fc2ae9fa1eefff7a9",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-2:fall:01",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_01.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.4,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "dfcc557a8105e3f42d8e59bbd1ad8994a0f5134aa3bfbfe1aded32614e4353e4",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-2:fall:25",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_25.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "dfd010c207f3aa86c26302ad7f94fc9ce6234f49c81a01d944805b4a2a7e0b7e",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-3:adl:15",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_15.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e03d21dac3b5eeb5a8c2df7e5f712170e971fe7818ee8cc51c8cb0258aaac2a7",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-1:fall:08",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_08.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.8,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e1b0a1f27ae05c2a98a3a21911c99915c25e0c2ca7d819985c420805456b272a",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-3:fall:05",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_05.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 3.2,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e1eeb76f55defa21c8f77297ac34a2180d73538bd9fca617ee2954fa6509ee1a",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-2:fall:13",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_13.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.5,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e1fad69a7e460ed486c53cf204ff16ca18e4d24e1fba22dc87500d769cbbdd71",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-3:fall:20",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_20.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.3,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e2be01070986486b8ad8dea02ea301c83f822c2e1c62f7a52076c9d3e2ccd5e5",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-2:fall:09",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_09.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.8,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e48577f5586dc77dbb8cf0b19a88bbe638d75b37ae01abaefc30f45ced13ad33",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-2:fall:06",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_06.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.1,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e69f975ea0dbcf3a711fd4e6a823bd9ea1f8a2d3c255538152cc94aeb89121c6",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 17.0,
+      "event_group_id": "subject-4:adl:20",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_20.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "e87611933ea74959726a7126602449953a9a91a70957a6c873658ca3e147ad03",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-4:adl:16",
+      "hard_negative": null,
+      "media_path": "subject-4_adl_16.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "ea16453b3b3bad6d6f1877121ccfb11d2c9c9261002a31bdead3d17ee3fff950",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:fall:16",
+      "hard_negative": null,
+      "media_path": "subject-1_fall_16.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.8,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "ed13dc624890f780f018ad129f51ebcba7d82940905ade91c978bf62507f5fa9",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 3.0,
+      "event_group_id": "subject-1:adl:16",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_16.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "edaf8d7ed9cff39121cd456dec54523de5e0f6572bddff7b57637ce99d4a517f",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-2:adl:23",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_23.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "edf13721f04d2f374a6098465cba379db999ed9c0249a481eecc64692759fa30",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-3:fall:18",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_18.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 4.2,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f00784978d10e5c9a9405d95943656555ec9db75ab8e05c054f3ee6e8fe427da",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 8.0,
+      "event_group_id": "subject-3:fall:17",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_17.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.4,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f00e20f7527c56ced2f0b796bd050988b95482969f0eb30712801bfa44945835",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-3:fall:13",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_13.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.4,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f076b185e57c10e2ca07e09fee65d5d57b0c10452748ee3d2aa8a9ef36d2a9e9",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 4.0,
+      "event_group_id": "subject-2:adl:13",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_13.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f18aebf9952ccf8c35bd10479c3a5614d50b04eb1b79a23c192274eb7b1700f4",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-2:adl:10",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_10.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f300f59e68dd72ad00651d7a93373f4324e56070072e5ad63012794de6f5a8a8",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 9.0,
+      "event_group_id": "subject-1:adl:11",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_11.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f60cab851e6fd007f5797d6778baac1e6fb5d853b8c5dac07da9a5f1e94cb588",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 10.0,
+      "event_group_id": "subject-1:adl:05",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_05.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f63b1e99012c05202090fbc43eaae8a2484a9ad45688ab6b61ecf4bf0962a960",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 12.0,
+      "event_group_id": "subject-3:adl:11",
+      "hard_negative": null,
+      "media_path": "subject-3_adl_11.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f8245f6af5f52571eda748d46e69d14987c02b0e0aabeba7e47a74ac83a6a6c7",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 7.0,
+      "event_group_id": "subject-2:fall:03",
+      "hard_negative": null,
+      "media_path": "subject-2_fall_03.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f82e25bf3cf9506dd13eee0e580ac4481f8033d1d0e06f8a6c38ba4cdaab9a49",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 6.0,
+      "event_group_id": "subject-1:adl:03",
+      "hard_negative": null,
+      "media_path": "subject-1_adl_03.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-1",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f8a668d5b15caf5ca5ab7ff03c3e41a7bca2d3a8e7c1ee1013416d7f47d326ae",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-4:fall:10",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_10.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 2.2,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "f8cb6ea5577d42303e9ce56f1112ff77a7763cee550deb14c4990e2ac01cd21c",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-3:fall:03",
+      "hard_negative": null,
+      "media_path": "subject-3_fall_03.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 1.5,
+      "subject_id": "subject-3",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "faf56086e8394434f65164c8b3fa04022c08bd1ab25c8fef0b829d21ef178a7e",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 13.0,
+      "event_group_id": "subject-2:adl:08",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_08.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "fbe5632ed3b793d9419ba1e83065c99730a36c098ad4f3205b532db5a6f83b69",
+      "coarse_event": "adl",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 11.0,
+      "event_group_id": "subject-2:adl:15",
+      "hard_negative": null,
+      "media_path": "subject-2_adl_15.npz",
+      "phase": "normal_adl",
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_adl",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "ADL",
+      "start_sec": 0.0,
+      "subject_id": "subject-2",
+      "supervision_mask": [
+        "phase",
+        "fall_event"
+      ]
+    },
+    {
+      "camera_id": "gmdcsa24",
+      "clip_id": "fdc5df3e337dfc7df1ba2aac52fc3e7d1b90a6da5dfc183009c98c980f2cc449",
+      "coarse_event": "fall",
+      "dataset": "GMDCSA24",
+      "dataset_version": "v2.1",
+      "end_sec": 5.0,
+      "event_group_id": "subject-4:fall:13",
+      "hard_negative": null,
+      "media_path": "subject-4_fall_13.npz",
+      "phase": null,
+      "provenance": {
+        "adapter_version": "1",
+        "mapping_reason": "gmdcsa24_timed_fall_interval",
+        "source_file": "metadata.csv"
+      },
+      "source_label": "Falling",
+      "start_sec": 0.3,
+      "subject_id": "subject-4",
+      "supervision_mask": [
+        "fall_event"
+      ]
+    }
+  ],
+  "datasets": [
+    {
+      "can_train": true,
+      "clip_count": 0,
+      "download_status": "deferred",
+      "license_status": "confirmed",
+      "name": "CAUCAFall",
+      "version": "v4"
+    },
+    {
+      "can_train": false,
+      "clip_count": 0,
+      "download_status": "deferred",
+      "license_status": "confirmed",
+      "name": "CHARLS",
+      "version": "official_longitudinal"
+    },
+    {
+      "can_train": true,
+      "clip_count": 160,
+      "download_status": "completed",
+      "license_status": "confirmed",
+      "name": "GMDCSA24",
+      "version": "v2.1"
+    },
+    {
+      "can_train": true,
+      "clip_count": 0,
+      "download_status": "deferred",
+      "license_status": "confirmed",
+      "name": "NTU RGB+D 120",
+      "version": "official"
+    },
+    {
+      "can_train": true,
+      "clip_count": 0,
+      "download_status": "not_downloaded",
+      "license_status": "confirmed",
+      "name": "OmniFall",
+      "version": "huggingface-card-2026-08-04"
+    },
+    {
+      "can_train": true,
+      "clip_count": 0,
+      "download_status": "not_downloaded",
+      "license_status": "confirmed",
+      "name": "Pre-VFall",
+      "version": "figshare-26488216-2025-04-28"
+    },
+    {
+      "can_train": false,
+      "clip_count": 0,
+      "download_status": "deferred",
+      "license_status": "needs_confirmation",
+      "name": "UP-Fall-3D-Skeletons",
+      "version": "zenodo-12773013-v1"
+    }
+  ],
+  "demo": false,
+  "registry_schema_version": "2.0",
+  "release_eligible": false,
+  "schema_version": "1.0"
+}
