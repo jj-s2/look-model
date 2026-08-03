@@ -1,0 +1,2 @@
+# Binary checkpoints are stored without text conversion.
+experiments/outputs/posec3d_gmdcsa24/best_acc_top1_epoch_45.pth binary

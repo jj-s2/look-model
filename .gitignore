@@ -96,6 +96,8 @@ models/**/*.safetensors
 **/*.onnx
 **/*.engine
 **/*.safetensors
+# Keep the validated, project-specific fall detector checkpoint in version control.
+!experiments/outputs/posec3d_gmdcsa24/best_acc_top1_epoch_45.pth
 work_dirs/
 
 # 序列化数据集与训练中间文件
