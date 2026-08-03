@@ -16,17 +16,23 @@
       "expected_size_human": "~1.1 GB",
       "sha256": "d455f90f67060b9c8032701d0a91ff38536eaa5ec85582a7a12e68351af591d7",
       "md5": "3d36f2c5c1a666b99639e4e9fd843efb",
-      "download_date": "2026-07-28",
+      "download_date": "2026-08-04",
       "download_url": "https://zenodo.org/records/13354453/files/ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos-v2.1.zip",
       "fallback_mirrors": [],
       "citation": "@dataset{ekram_alam_2024_13354453, author = {Ekram Alam}, title = {{ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos: 2.1}}, year = {2024}, publisher = {Zenodo}, version = {v2.1}, doi = {10.5281/zenodo.13354453}}",
       "paper": "@article{alam2024, title={GMDCSA24: A Dataset for Human Fall Detection in Videos}, author={Alam, Ekram and Sufian, Abu and Dutta, Paramartha and Leo, Marco and Hameed, I.A.}, year={2024}, journal={Data in Brief}}",
       "subjects": 4,
-      "labels": ["fall", "adl"],
+      "labels": [
+        "fall",
+        "adl"
+      ],
       "split_strategy": "leave_one_subject_out",
       "redistribution": "raw_data_not_committed",
       "training_allowed": true,
-      "role": ["event_baseline", "event_training"],
+      "role": [
+        "event_baseline",
+        "event_training"
+      ],
       "actual_size_bytes": 1107545615
     },
     {
@@ -46,11 +52,18 @@
       "citation": null,
       "paper": null,
       "subjects": 9,
-      "labels": ["normal", "abnormal", "fall"],
+      "labels": [
+        "normal",
+        "abnormal",
+        "fall"
+      ],
       "split_strategy": "subject_grouped",
       "redistribution": "raw_data_not_committed",
       "training_allowed": true,
-      "role": ["prefall_supervision", "cross_view"],
+      "role": [
+        "prefall_supervision",
+        "cross_view"
+      ],
       "notes": "九名健康年轻参与者的模拟先兆数据，不得表述为真实老年临床数据。"
     },
     {
@@ -70,11 +83,17 @@
       "citation": null,
       "paper": null,
       "subjects": 10,
-      "labels": ["fall", "adl"],
+      "labels": [
+        "fall",
+        "adl"
+      ],
       "split_strategy": "subject_grouped",
       "redistribution": "raw_data_not_committed",
       "training_allowed": true,
-      "role": ["domain_generalization", "hard_negative"],
+      "role": [
+        "domain_generalization",
+        "hard_negative"
+      ],
       "notes": "家庭环境、遮挡、自然光/人工光/夜间、HIKVISION 红外摄像机。"
     },
     {
@@ -94,11 +113,16 @@
       "citation": null,
       "paper": null,
       "subjects": 5,
-      "labels": ["impact", "non-impact"],
+      "labels": [
+        "impact",
+        "non-impact"
+      ],
       "split_strategy": "subject_grouped_debug_only",
       "redistribution": "forbidden_until_license_confirmed",
       "training_allowed": false,
-      "role": ["impact_debug"],
+      "role": [
+        "impact_debug"
+      ],
       "notes": "只允许元数据调查，确认许可前不得进入正式训练或发布。"
     },
     {
@@ -118,13 +142,18 @@
       "citation": "@article{schneider2025omnifall, title={OmniFall: A Unified Staged-to-Wild Benchmark for Human Fall Detection}, year={2025}, url={https://arxiv.org/abs/2505.19889}}",
       "paper": "https://arxiv.org/abs/2505.19889",
       "subjects": 101,
-      "labels": ["dataset_card_versioned"],
+      "labels": [
+        "dataset_card_versioned"
+      ],
       "split_strategy": "subject_grouped_cross_dataset",
       "redistribution": "annotations_only_upstream_video_licenses_apply",
       "training_allowed": true,
       "academic_only": true,
       "raw_video_license": "upstream",
-      "role": ["cross_dataset_evaluation", "temporal_labels"],
+      "role": [
+        "cross_dataset_evaluation",
+        "temporal_labels"
+      ],
       "notes": "数据卡当前为 16 类；论文摘要描述 10 类，使用数据卡版本并在模型卡记录差异。"
     },
     {
@@ -144,12 +173,23 @@
       "citation": null,
       "paper": "https://arxiv.org/abs/1905.04757",
       "subjects": 106,
-      "labels": ["A42", "A43", "A5", "A6", "A8", "A9", "A80"],
+      "labels": [
+        "A42",
+        "A43",
+        "A5",
+        "A6",
+        "A8",
+        "A9",
+        "A80"
+      ],
       "split_strategy": "cross_subject_official",
       "redistribution": "forbidden",
       "training_allowed": true,
       "academic_only": true,
-      "role": ["optional_skeleton_pretraining", "hard_negative"]
+      "role": [
+        "optional_skeleton_pretraining",
+        "hard_negative"
+      ]
     },
     {
       "name": "CHARLS",
@@ -168,12 +208,19 @@
       "citation": null,
       "paper": null,
       "subjects": 17000,
-      "labels": ["sleep", "activity", "falls", "depression_screening"],
+      "labels": [
+        "sleep",
+        "activity",
+        "falls",
+        "depression_screening"
+      ],
       "split_strategy": "survey_wave",
       "redistribution": "user_agreement",
       "training_allowed": false,
       "academic_only": true,
-      "role": ["population_association_only"],
+      "role": [
+        "population_association_only"
+      ],
       "notes": "只做群体关联和背景研究，不训练摄像头诊断模型。"
     }
   ],
