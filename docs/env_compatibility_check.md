@@ -1,6 +1,6 @@
 # 环境兼容性检查报告
 
-> 生成日期：2026-07-28
+> 生成日期：2026-08-04
 > 检查人：AI 算法负责人
 > 所有信息均通过实际执行命令或访问官方文档获取，未伪造任何字段。
 
@@ -14,12 +14,15 @@
 | GPU | NVIDIA GeForce RTX 4060 Laptop GPU（8 GB VRAM，Ada Lovelace 架构，compute capability 8.9） | `nvidia-smi` |
 | 驱动版本 | 592.82 | `nvidia-smi` |
 | 驱动支持的 CUDA Runtime 上限 | 13.1（注：此为驱动支持的最高版本，**非已安装的 CUDA Toolkit 版本**；PyTorch 自带 CUDA Runtime，无需单独安装 Toolkit） | `nvidia-smi` |
-| 当前 GPU 显存占用 | 1957 MiB / 8188 MiB（系统其他进程占用） | `nvidia-smi` |
+| 当前 GPU 显存占用 | 1862 MiB / 8188 MiB（系统其他进程占用） | `nvidia-smi` |
 | C 盘可用空间 | 约 79 GB | `Get-PSDrive C` |
 | Git | 2.54.0.windows.1 ✅ | `git --version` |
 | Python（系统级） | 3.12.10 ⚠️（**与 OpenMMLab 推荐版本不匹配**） | `python --version` |
 | pip | 25.0.1 ✅ | `pip --version` |
 | conda | **未安装** ❌ | `conda --version` 返回未识别 |
+| PyTorch GPU | `2.4.1+cu121` ✅ | `torch.cuda.is_available()=True` |
+| TorchVision | `0.19.1+cu121` ✅ | GPU wheel 已验证 |
+| CUDA 张量 | `cuda:0` ✅ | RTX 4060 上矩阵计算通过 |
 
 ---
 
@@ -94,9 +97,15 @@ mmpose      : 1.3.0
 mmaction2   : 1.2.0
 ```
 
-### 4.1 安装命令（待执行）
+### 4.1 已执行的 GPU 安装命令
 
 ```bash
+# 当前系统 Python 3.12 环境已完成 GPU 基础运行时验证：
+python -m pip install --force-reinstall torch==2.4.1 torchvision==0.19.1 \
+  --index-url https://download.pytorch.org/whl/cu121 \
+  --proxy http://127.0.0.1:7897
+
+# 如需完整 OpenMMLab 训练栈，建议另建 Python 3.10 环境：
 # 1. 创建 conda 环境
 conda create -n elderly-ai python=3.10 -y
 conda activate elderly-ai
@@ -119,9 +128,10 @@ pip install opencv-python decord numpy pandas scikit-learn matplotlib pytest pyy
 ```
 
 ### 4.2 待验证项
-- [ ] Miniconda 安装
-- [ ] conda 环境创建成功
-- [ ] PyTorch 能调用 CUDA（`torch.cuda.is_available()` 返回 True）
+- [ ] Miniconda 安装（只有在安装 OpenMMLab 全栈时需要）
+- [ ] conda 环境创建成功（只有在安装 OpenMMLab 全栈时需要）
+- [x] PyTorch 能调用 CUDA（`torch.cuda.is_available()` 返回 True）
+- [x] CUDA 张量在 RTX 4060 上运行成功
 - [ ] mmcv 预编译包安装成功（不触发源码编译）
 - [ ] mmdet/mmpose/mmaction2 import 成功
 
