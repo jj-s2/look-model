@@ -1,5 +1,11 @@
 # Evaluation report
 
+## U-PMCC audit artifact
+
+The PMCC evidence audit is generated at `docs/pmcc-evaluation-report.md` from
+provenance-validated, subject-grouped evaluation metrics. Synthetic and offline
+artifacts remain research-only and cannot support a release or clinical claim.
+
 ## Release gate: FAIL
 
 This is an evidence report for a research and competition prototype. It does not
