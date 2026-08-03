@@ -13,12 +13,12 @@ Claim boundary: `research_only` — not release eligible.
 
 | Model | Horizon | AUROC | AUPRC | Brier |
 | --- | --- | ---: | ---: | ---: |
-| baseline | 24h | 1.0 | 1.0 | 0.20757884678200691 |
-| baseline | 72h | 0.75 | 0.8333333333333333 | 0.38958459515570937 |
-| baseline | 7d | 0.75 | 0.8333333333333333 | 0.3594967966166859 |
-| full | 24h | 1.0 | 1.0 | 0.1977375576778162 |
-| full | 72h | 0.75 | 0.8333333333333333 | 0.37112887584775084 |
-| full | 7d | 0.75 | 0.8333333333333333 | 0.3484021042983468 |
+| baseline | 24h | unavailable | unavailable | unavailable |
+| baseline | 72h | unavailable | unavailable | unavailable |
+| baseline | 7d | unavailable | unavailable | unavailable |
+| full | 24h | unavailable | unavailable | unavailable |
+| full | 72h | unavailable | unavailable | unavailable |
+| full | 7d | unavailable | unavailable | unavailable |
 
 ## Evidence boundary
 

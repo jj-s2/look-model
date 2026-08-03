@@ -76,16 +76,19 @@ def _subject(record: Mapping[str, Any]) -> str:
     return observation["subject_id"]
 
 
-def _event_day(record: Mapping[str, Any]) -> int | None:
+def _label(record: Mapping[str, Any]) -> tuple[int | None, int]:
     label = record.get("label")
     if not isinstance(label, Mapping):
         raise ValueError("every evaluation record requires a label")
     value = label.get("event_day")
+    censor = label.get("censor_day")
+    if isinstance(censor, bool) or not isinstance(censor, int) or not 1 <= censor <= 7:
+        raise ValueError("label.censor_day must be an integer in [1, 7]")
     if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 7:
+        return None, censor
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= censor:
         raise ValueError("label.event_day must be null or an integer in [1, 7]")
-    return value
+    return value, censor
 
 
 def _probability(value: Any, name: str) -> float:
@@ -94,23 +97,10 @@ def _probability(value: Any, name: str) -> float:
     return float(value)
 
 
-def _fixture_predictions(record: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]]:
-    """Provide deterministic placeholders only for offline score-less fixtures.
-
-    These are deliberately labelled in the result as unavailable model scores;
-    they make the script auditable for an offline smoke test, not evaluable
-    evidence for a trained model.
-    """
-    digest = hashlib.sha256(_subject(record).encode("utf-8")).digest()
-    base = 0.04 + (digest[0] / 255.0) * 0.16
-    return {"baseline": {"24h": base * 0.6, "72h": base * 0.75, "7d": base},
-            "full": {"24h": base * 0.8, "72h": base * 0.9, "7d": min(1.0, base * 1.1)}}
-
-
-def _predictions(record: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]]:
+def _predictions(record: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]] | None:
     values = record.get("predictions")
     if values is None:
-        values = _fixture_predictions(record)
+        return None
     if not isinstance(values, Mapping) or not values:
         raise ValueError("predictions must be a non-empty mapping when supplied")
     parsed: dict[str, Mapping[str, float]] = {}
@@ -166,26 +156,36 @@ def _threshold(scores: Iterable[float], budget: float = 0.10) -> float | None:
     return values[min(len(values) - 1, max(0, math.ceil(len(values) * budget) - 1))]
 
 
-def _metrics(records: list[dict[str, Any]], model_name: str, horizon_days: int, horizon: str) -> dict[str, float | int | None]:
-    eligible = [record for record in records if not bool(record.get("abstained", False))]
+def _unavailable_metrics(reason: str) -> dict[str, float | int | str | None]:
+    return {"auroc": None, "auprc": None, "brier": None, "expected": None, "observed": None, "absolute_gap": None,
+            "alert_budget": 0.10, "alert_threshold": None, "alert_precision": None, "alert_recall": None,
+            "false_alerts_per_subject_day": None, "lead_time_days": None, "evaluated_records": 0,
+            "censored_before_horizon": 0, "reason": reason}
+
+
+def _metrics(records: list[dict[str, Any]], model_name: str, horizon_days: int, horizon: str) -> dict[str, float | int | str | None]:
+    if any(record["_predictions"] is None for record in records):
+        return _unavailable_metrics("scored_predictions_unavailable")
+    known = [record for record in records if _label(record)[1] >= horizon_days]
+    eligible = [record for record in known if not bool(record.get("abstained", False))]
     scores = [record["_predictions"][model_name][horizon] for record in eligible]
-    labels = [int((_event_day(record) or 99) <= horizon_days) for record in eligible]
+    labels = [int((_label(record)[0] or 99) <= horizon_days) for record in eligible]
     calibration = _calibration(scores, labels)
-    threshold = _threshold(scores)
-    alerts = [score >= threshold for score in scores] if threshold is not None else []
+    thresholds = [record.get("_inner_thresholds", {}).get(model_name, {}).get(horizon) for record in eligible]
+    alerts = [threshold is not None and score >= threshold for score, threshold in zip(scores, thresholds)]
     tp = sum(alert and label for alert, label in zip(alerts, labels))
     fp = sum(alert and not label for alert, label in zip(alerts, labels))
     positives = sum(labels)
     alert_count = sum(alerts)
-    lead_times = [_event_day(record) for record, alert, label in zip(eligible, alerts, labels) if alert and label]
+    lead_times = [_label(record)[0] for record, alert, label in zip(eligible, alerts, labels) if alert and label]
     subject_days = max(1, len({(_subject(record), record.get("observation", {}).get("observed_at")) for record in eligible}))
     return {"auroc": _auc(scores, labels), "auprc": _average_precision(scores, labels), **calibration,
-            "alert_budget": 0.10, "alert_threshold": threshold,
+            "alert_budget": 0.10, "alert_threshold": "inner_fold_only",
             "alert_precision": None if not alert_count else tp / alert_count,
             "alert_recall": None if not positives else tp / positives,
             "false_alerts_per_subject_day": fp / subject_days,
             "lead_time_days": None if not lead_times else sum(lead_times) / len(lead_times),
-            "evaluated_records": len(eligible)}
+            "evaluated_records": len(eligible), "censored_before_horizon": len(records) - len(known), "reason": None}
 
 
 def _split_audit(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -197,6 +197,38 @@ def _split_audit(records: list[dict[str, Any]]) -> dict[str, Any]:
     overlapping = any(left & right for left_key, left in groups.items() for right_key, right in groups.items() if left_key < right_key)
     return {"outer_folds": {str(key): sorted(value) for key, value in sorted(groups.items())}, "passed": not overlapping,
             "rule": "a subject is assigned to exactly one deterministic outer fold; calibration remains inside training folds"}
+
+
+def _outer_held_out_records(records: list[dict[str, Any]], model_names: Iterable[str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Assign every scored window to a subject-disjoint held-out outer fold.
+
+    The alert cutoff for an outer test window is derived exclusively from other
+    subjects observed no later than that fold's held-out time boundary.
+    """
+    subjects = sorted({_subject(record) for record in records})
+    count = min(5, len(subjects))
+    assignments = {subject: int(hashlib.sha256(subject.encode("utf-8")).hexdigest()[:8], 16) % count for subject in subjects}
+    held_out: list[dict[str, Any]] = []
+    folds: list[dict[str, Any]] = []
+    for fold in sorted(set(assignments.values())):
+        test_subjects = sorted(subject for subject, assigned in assignments.items() if assigned == fold)
+        test = [record for record in records if _subject(record) in test_subjects]
+        training_subjects = sorted(set(subjects) - set(test_subjects))
+        cutoff = max(str(record.get("observation", {}).get("observed_at", "")) for record in test)
+        training = [record for record in records if _subject(record) in training_subjects and str(record.get("observation", {}).get("observed_at", "")) <= cutoff]
+        thresholds: dict[str, dict[str, float | None]] = {}
+        for name in model_names:
+            thresholds[name] = {}
+            for horizon, _ in HORIZONS:
+                source = [record["_predictions"][name][horizon] for record in training if record["_predictions"] is not None and not bool(record.get("abstained", False))]
+                thresholds[name][horizon] = _threshold(source)
+        for record in test:
+            record["_inner_thresholds"] = thresholds
+        held_out.extend(test)
+        folds.append({"fold": fold, "test_subjects": test_subjects, "training_subjects": training_subjects,
+                      "held_out_records": len(test), "time_boundary": cutoff,
+                      "inner_calibration": {"time_blocked": True, "training_records": len(training), "thresholds": thresholds}})
+    return held_out, {"evaluation_population": "outer_held_out_subject_windows_only", "folds": folds}
 
 
 def _stratified(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -229,15 +261,19 @@ def evaluate(records: list[dict[str, Any]], model_card: Mapping[str, Any]) -> di
         raise ValueError("model and evaluation release_id must agree")
     for record in records:
         record["_predictions"] = _predictions(record)
-        _event_day(record)
-    model_names = sorted({name for record in records for name in record["_predictions"].keys()})
-    model_rows = {name: {"horizons": {horizon: _metrics(records, name, days, horizon) for horizon, days in HORIZONS}} for name in model_names}
+        _label(record)
+    missing_scores = any(record["_predictions"] is None for record in records)
+    if missing_scores and tier not in NON_RELEASE_TIERS:
+        raise ValueError("scored predictions are required for real/release evaluation")
+    model_names = ["baseline", "full"] if missing_scores else sorted({name for record in records for name in record["_predictions"].keys()})
+    evaluated_records, split_metadata = _outer_held_out_records(records, model_names)
+    model_rows = {name: {"horizons": {horizon: _metrics(evaluated_records, name, days, horizon) for horizon, days in HORIZONS}} for name in model_names}
     non_release = tier in NON_RELEASE_TIERS or model_card.get("promoted") is not True
     return {"schema_version": "pmcc.evaluation.v1", "claim_boundary": "research_only" if non_release else "research_evaluation_not_clinical",
             "release_metrics_eligible": not non_release, "split_strategy": "subject_grouped_outer_with_inner_calibration",
-            "leakage_check": _split_audit(records), "provenance": {"release_id": release_id, "dataset_id": records[0].get("dataset_id"), "model_artifact_id": model_card.get("artifact_id"), "evidence_tier": tier, "promoted": False if non_release else True},
+            "leakage_check": _split_audit(records), "split_metadata": split_metadata, "provenance": {"release_id": release_id, "dataset_id": records[0].get("dataset_id"), "model_artifact_id": model_card.get("artifact_id"), "evidence_tier": tier, "promoted": False if non_release else True},
             "model_rows": model_rows, "ablations": {name: {"status": "unavailable", "reason": "not separately scored in this artifact"} for name in ABLATIONS},
-            "coverage": {"records": len(records), "non_abstained_records": sum(not bool(record.get("abstained", False)) for record in records), "abstention_rate": sum(bool(record.get("abstained", False)) for record in records) / len(records)},
+            "coverage": {"records": len(evaluated_records), "non_abstained_records": sum(not bool(record.get("abstained", False)) for record in evaluated_records), "abstention_rate": sum(bool(record.get("abstained", False)) for record in evaluated_records) / len(evaluated_records)},
             "stratified": _stratified(records), "method": {"outer_split": "subject_grouped", "calibration": "inner_training_folds_only", "association_only": True, "clinical_use": False,
             "score_source": "artifact_predictions_or_deterministic_offline_placeholder"}}
 

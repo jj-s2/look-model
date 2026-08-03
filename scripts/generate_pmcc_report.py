@@ -22,9 +22,12 @@ def _read(path: Path) -> Mapping[str, Any]:
 def render(metrics: Mapping[str, Any]) -> str:
     provenance = metrics.get("provenance", {})
     rows = []
+    def cell(value: Any) -> str:
+        return "unavailable" if value is None else str(value)
+
     for model, result in metrics.get("model_rows", {}).items():
         for horizon, values in result.get("horizons", {}).items():
-            rows.append(f"| {model} | {horizon} | {values.get('auroc', 'unavailable')} | {values.get('auprc', 'unavailable')} | {values.get('brier', 'unavailable')} |")
+            rows.append(f"| {model} | {horizon} | {cell(values.get('auroc'))} | {cell(values.get('auprc'))} | {cell(values.get('brier'))} |")
     status = "eligible for research evaluation only" if metrics.get("release_metrics_eligible") else "not release eligible"
     return "\n".join((
         "# U-PMCC evaluation audit", "", f"Claim boundary: `{metrics.get('claim_boundary', 'research_only')}` — {status}.", "",
