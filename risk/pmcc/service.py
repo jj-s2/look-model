@@ -76,7 +76,12 @@ class PMCCService:
         records = tuple(record for _, record in sorted(self._records_for(subject_id).items()) if record.observed_at.date() <= as_of)
         if not records:
             raise ValueError("subject has no observations on or before as_of")
-        baseline = self._baselines[subject_id]
+        # Historical forecasts must be reproducible from the information set
+        # available at ``as_of``.  Never reuse a live baseline containing later
+        # observations because that would leak future information into z-scores.
+        baseline = BaselineManager(self._priors)
+        for record in records:
+            baseline.add(record)
         changes = detect_changes(records, baseline)
         chains = TemporalChainBuilder().build(changes)
         window = build_feature_window(records, baseline, chains, as_of)
@@ -260,8 +265,6 @@ def _evidence_groups(records: Sequence[DailyObservation]) -> int:
                 groups.add("physiology")
             elif any(token in name for token in ("step", "gait", "sway", "stride", "sit", "activity", "balance")):
                 groups.add("vision_activity")
-            else:
-                groups.add("other")
     return len(groups)
 
 

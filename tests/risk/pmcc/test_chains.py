@@ -48,3 +48,26 @@ def test_chain_builder_rejects_descending_event_timestamps():
             event("sleep_duration_minutes", 1),
             event("step_count", 0),
         ))
+
+
+def test_chain_builder_accepts_equal_timestamp_events_deterministically():
+    chains = TemporalChainBuilder().build((
+        event("sleep_duration_minutes", 0),
+        event("step_count", 0),
+    ))
+
+    assert len(chains) == 1
+    assert chains[0].provenance["gap_hours"] == (0.0,)
+
+
+def test_chain_builder_rejects_duplicate_event_ids():
+    first = event("sleep_duration_minutes", 0)
+    duplicate = event("step_count", 0)
+    duplicate = ChangeEvent(
+        duplicate.subject_id, duplicate.occurred_at, duplicate.feature,
+        duplicate.previous_value, duplicate.current_value, duplicate.confidence,
+        {**duplicate.provenance, "event_id": first.provenance["event_id"]},
+    )
+
+    with pytest.raises(ValueError, match="duplicate.*event"):
+        TemporalChainBuilder().build((first, duplicate))

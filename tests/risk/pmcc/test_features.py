@@ -63,6 +63,21 @@ def test_missing_values_are_nan_with_mask_instead_of_zero_normal_imputation():
     assert window.quality[-1][raw_index] == 0.0
 
 
+def test_missing_observation_days_mask_derived_features_instead_of_zero_normal_imputation():
+    as_of = date(2026, 8, 1)
+    item = observation(as_of, steps=130.0)
+    baseline = BaselineManager(population_priors={"steps": (100.0, 10.0)})
+    baseline.add(item)
+
+    window = build_feature_window((item,), baseline, (), as_of)
+
+    for name in ("chain_strength", "confirmed_fall_count", "near_fall_count", "false_alarm_count", "baseline_personal_count"):
+        index = window.feature_names.index(name)
+        assert window.missing_mask[-2][index] is True
+        assert isnan(window.values[-2][index])
+        assert window.quality[-2][index] == 0.0
+
+
 def test_chain_strength_and_feedback_counts_are_retained_on_their_local_day():
     as_of = date(2026, 8, 1)
     item = observation(as_of, outcome="confirmed_fall")

@@ -79,7 +79,7 @@ def detect_changes(
                     "association_only": True,
                 },
             ))
-    return tuple(events)
+    return tuple(sorted(events, key=lambda event: (event.occurred_at, str(event.provenance.get("event_id", "")))))
 
 
 def _quality(observation: DailyObservation, feature: str) -> float:

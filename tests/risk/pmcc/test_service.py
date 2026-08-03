@@ -56,6 +56,56 @@ def test_service_keeps_vision_activity_when_physiology_is_absent() -> None:
     assert "heart_rate:raw" not in forecast.provenance["feature_names"]
 
 
+def test_sleep_and_physiology_without_vision_activity_abstains_visual_gate() -> None:
+    as_of = date(2026, 8, 1)
+    service = PMCCService()
+    for offset in range(14):
+        day = as_of - timedelta(days=13 - offset)
+        service.observe(DailyObservation(
+            "resident-1", datetime.combine(day, datetime.min.time(), tzinfo=UTC),
+            {"sleep_duration_minutes": 420.0, "heart_rate": 70.0},
+            {"sleep_duration_minutes": 0.9, "heart_rate": 0.9},
+            {"sleep_duration_minutes": True, "heart_rate": True},
+            {"evidence_tier": "real_device_longitudinal", "promoted": True},
+        ))
+
+    forecast = service.forecast("resident-1", as_of)
+
+    assert forecast.provenance["abstained"] is True
+    assert "missing_visual_evidence_group" in forecast.provenance["reasons"]
+
+
+def test_historical_forecast_ignores_observations_added_after_as_of():
+    class ZModel:
+        def predict_hazards(self, features: object) -> tuple[float, ...]:
+            window = features
+            index = window.feature_names.index("steps:directional_z")
+            z_score = abs(window.values[-1][index])
+            return (min(0.95, 0.01 + 0.1 * z_score),) * 7
+
+    as_of = date(2026, 8, 1)
+    service = PMCCService(model=ZModel())
+    for offset in range(14):
+        day = as_of - timedelta(days=13 - offset)
+        service.observe(DailyObservation(
+            "resident-1", datetime.combine(day, datetime.min.time(), tzinfo=UTC),
+            {"steps": float(100 + offset)}, {"steps": 0.9}, {"steps": True},
+            {"evidence_tier": "real_device_longitudinal", "promoted": True},
+        ))
+    before = service.forecast("resident-1", as_of)
+
+    for offset in range(30):
+        day = as_of + timedelta(days=offset + 1)
+        service.observe(DailyObservation(
+            "resident-1", datetime.combine(day, datetime.min.time(), tzinfo=UTC),
+            {"steps": 10000.0}, {"steps": 0.9}, {"steps": True},
+            {"evidence_tier": "real_device_longitudinal", "promoted": True},
+        ))
+    after = service.forecast("resident-1", as_of)
+
+    assert after == before
+
+
 def test_model_error_degrades_to_cpu_rule_path() -> None:
     class BrokenModel:
         def predict_hazards(self, _features: object) -> tuple[float, ...]:

@@ -28,8 +28,15 @@ class TemporalChainBuilder:
         _require_strictly_chronological(
             tuple(event.occurred_at for event in events), "events"
         )
+        event_ids = [_event_id(event) for event in events]
+        if len(event_ids) != len(set(event_ids)):
+            raise ValueError("duplicate event IDs are not allowed")
+        # Equal timestamps are legitimate for multimodal daily aggregates.
+        # Tie-break by the explicit event ID so chains are reproducible even
+        # when feature extraction order changes.
+        ordered = tuple(sorted(events, key=lambda event: (event.occurred_at, _event_id(event))))
         by_subject: dict[str, list[ChangeEvent]] = {}
-        for event in events:
+        for event in ordered:
             by_subject.setdefault(event.subject_id, []).append(event)
 
         chains: list[TemporalChain] = []
@@ -139,5 +146,5 @@ def _event_id(event: ChangeEvent) -> str:
 
 
 def _require_strictly_chronological(timestamps: tuple[datetime, ...], name: str) -> None:
-    if any(later <= earlier for earlier, later in zip(timestamps, timestamps[1:])):
-        raise ValueError(f"{name} must be supplied in strictly chronological order")
+    if any(later < earlier for earlier, later in zip(timestamps, timestamps[1:])):
+        raise ValueError(f"{name} must be supplied in chronological order")

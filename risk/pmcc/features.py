@@ -125,6 +125,12 @@ def _row_for_day(
         z_quality = quality * baseline.quality(feature) if z_value is not None else 0.0
         _append(row, mask, scores, z_value, z_quality)
         _append(row, mask, scores, value if available else None, quality if available else 0.0)
+    if observation is None:
+        # A gap is not an observed normal day.  Derived fields must retain the
+        # same explicit missingness contract as raw sensor fields.
+        for _ in _DERIVED_FEATURES:
+            _append(row, mask, scores, None, 0.0)
+        return tuple(row), tuple(mask), tuple(scores)
     chain_score = _chain_strength(chains, day)
     _append(row, mask, scores, chain_score, 1.0)
     outcomes = _outcome_counts(observation)
