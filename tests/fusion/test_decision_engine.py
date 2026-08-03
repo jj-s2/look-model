@@ -93,6 +93,14 @@ def test_high_forecast_score_with_low_source_confidence_is_not_critical(engine: 
     assert any("insufficient" in reason for reason in decision.reasons)
 
 
+@pytest.mark.parametrize("event_type", [EventType.PREFALL_WARNING, EventType.FALL_FORECAST, EventType.WELLBEING_CHANGE])
+def test_non_event_risk_never_becomes_critical(engine: DecisionEngine, event_type: EventType) -> None:
+    payload = {"subject_id": "elder-1", "score": 0.99, "sustained_change": True}
+    source = Source.SCREENING if event_type is EventType.WELLBEING_CHANGE else Source.VISION
+    decision = engine.evaluate([event(source, event_type, payload)], NOW)[0]
+    assert decision.level == "warning"
+
+
 def test_vision_fall_without_radar_evidence_is_vision_only(engine: DecisionEngine) -> None:
     fall = engine.evaluate([CONFIRMED_FALL], NOW)[0]
 

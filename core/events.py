@@ -18,6 +18,7 @@ class EventType(str, Enum):
     POSE = "pose"
     FALL_EVENT = "fall_event"
     FALL_FORECAST = "fall_forecast"
+    PREFALL_WARNING = "prefall_warning"
     PHYSIOLOGY = "physiology"
     WELLBEING_CHANGE = "wellbeing_change"
     AVAILABILITY = "availability"

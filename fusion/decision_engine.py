@@ -21,7 +21,7 @@ DecisionQuality = Literal["multimodal", "vision_only", "screening_only", "degrad
 
 @dataclass(frozen=True)
 class RiskDecision:
-    kind: Literal["fall_event", "fall_forecast", "wellbeing_change"]
+    kind: Literal["fall_event", "fall_forecast", "prefall_warning", "wellbeing_change"]
     level: RiskLevel
     score: float
     reasons: tuple[str, ...]
@@ -44,6 +44,8 @@ class DecisionEngine:
                 decisions.append(self._fall_event(event, self._has_matching_radar(event, events)))
             elif event.event_type is EventType.FALL_FORECAST:
                 decisions.append(self._fall_forecast(event, self._has_matching_radar(event, events)))
+            elif event.event_type is EventType.PREFALL_WARNING:
+                decisions.append(self._prefall_warning(event, self._has_matching_radar(event, events)))
             elif event.event_type is EventType.WELLBEING_CHANGE:
                 decisions.append(self._wellbeing_change(event, self._has_abnormal_physiology(event, events)))
         return decisions
@@ -115,7 +117,7 @@ class DecisionEngine:
         raw_score = event.payload.get("score", event.payload.get("risk_score", 0.0))
         score = float(raw_score) if isinstance(raw_score, Real) and not isinstance(raw_score, bool) else 0.0
         score = max(0.0, min(1.0, score))
-        level: RiskLevel = "info" if score < 0.3 else "watch" if score < 0.6 else "warning" if score < 0.9 else "critical"
+        level: RiskLevel = "info" if score < 0.3 else "watch" if score < 0.6 else "warning"
         quality: DecisionQuality = "multimodal" if radar_matched else "vision_only"
         quality_reason = "timely radar evidence corroborates this forecast" if radar_matched else "no timely matching radar evidence; forecast is vision-only"
         action = "continue routine monitoring" if level == "info" else "check mobility and reduce fall hazards"
@@ -123,6 +125,25 @@ class DecisionEngine:
             "fall_forecast", level, score,
             (f"vision pre-fall score is {score:.2f}", quality_reason), quality,
             action, self._subject(event), event.timestamp,
+        )
+
+    def _prefall_warning(self, event: SensorEvent, radar_matched: bool) -> RiskDecision:
+        quality_failure = self._quality_failure(event)
+        if quality_failure is not None:
+            return RiskDecision(
+                "prefall_warning", "watch", 0.0,
+                ("pre-fall warning evidence is insufficient for escalation", quality_failure), "degraded",
+                "restore reliable monitoring before acting on the warning", self._subject(event), event.timestamp,
+            )
+        raw_score = event.payload.get("score", event.payload.get("risk_score", 0.0))
+        score = float(raw_score) if isinstance(raw_score, Real) and not isinstance(raw_score, bool) else 0.0
+        score = max(0.0, min(1.0, score))
+        quality: DecisionQuality = "multimodal" if radar_matched else "vision_only"
+        reason = "timely radar evidence corroborates this pre-fall warning" if radar_matched else "pre-fall warning is vision-only"
+        return RiskDecision(
+            "prefall_warning", "warning", score,
+            (f"sustained pre-fall abnormality score is {score:.2f}", reason), quality,
+            "check the walking path and invite the person to pause safely", self._subject(event), event.timestamp,
         )
 
     def _wellbeing_change(self, event: SensorEvent, physiology_abnormal: bool) -> RiskDecision:
