@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -142,6 +144,12 @@ def test_portable_model_artifact_round_trips_and_is_accepted_by_service(tmp_path
         feature_names=schema,
     )
     assert loaded.predict_hazards(window) == reloaded.predict_hazards(window)
+    malformed = json.loads(json.dumps(payload))
+    malformed["estimators"][0]["weights"].append(0.0)
+    malformed["estimators"][0]["mean"].append(0.0)
+    malformed["estimators"][0]["scale"].append(1.0)
+    with pytest.raises(ValueError, match="width"):
+        RuleSurvivalCalibrator.from_artifact(malformed)
 
     observation = DailyObservation.from_dict(_read_jsonl(fixture)[0]["observation"])
     forecast = PMCCService(model=model_dir / "model.json", observations=(observation,)).forecast(

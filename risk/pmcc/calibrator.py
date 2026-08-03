@@ -153,7 +153,11 @@ class RuleSurvivalCalibrator:
             raise ValueError("artifact random_seed must be an integer")
         model = cls(random_seed=seed, evidence_tier=evidence_tier)
         model.feature_names = tuple(schema)
-        model._estimators = tuple(_estimator_from_artifact(item) for item in estimators)
+        loaded_estimators = tuple(_estimator_from_artifact(item) for item in estimators)
+        expected_width = 3 * len(model.feature_names)
+        if any(estimator.weights.shape != (expected_width,) for estimator in loaded_estimators):
+            raise ValueError("artifact estimator width does not match feature_schema")
+        model._estimators = loaded_estimators
         return model
 
     def save_artifact(self, path: str | Path) -> None:
