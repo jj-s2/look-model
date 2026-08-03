@@ -111,7 +111,11 @@ class UnifiedClip:
             raise ValueError("supervision_mask must be a tuple")
         if any(item not in SUPERVISION_FIELDS for item in self.supervision_mask):
             raise ValueError("supervision_mask contains an unknown field")
-        if self.phase is None and not self.supervision_mask:
+        if (
+            self.phase is None
+            and not self.supervision_mask
+            and self.provenance.get("metadata_only") != "true"
+        ):
             raise ValueError("unknown phase requires supervision_mask")
         if not isinstance(self.provenance, Mapping):
             raise ValueError("provenance must be a mapping")
