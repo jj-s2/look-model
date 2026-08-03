@@ -28,7 +28,12 @@ class BaselineManager:
         feature_floors: Mapping[str, float] | None = None,
         default_floor: float = 1e-6,
     ) -> None:
-        if not isinstance(default_floor, (int, float)) or isinstance(default_floor, bool) or default_floor <= 0:
+        if (
+            not isinstance(default_floor, (int, float))
+            or isinstance(default_floor, bool)
+            or not isfinite(default_floor)
+            or default_floor <= 0
+        ):
             raise ValueError("default_floor must be a positive number")
         self._default_floor = float(default_floor)
         self._priors = self._clean_priors(population_priors or {})

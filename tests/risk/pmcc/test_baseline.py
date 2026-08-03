@@ -60,6 +60,12 @@ def test_directional_z_uses_median_mad_and_floor_when_mad_is_zero():
     assert manager.directional_z("sleep_duration_minutes", 484.0) == pytest.approx(2.0)
 
 
+@pytest.mark.parametrize("default_floor", [float("nan"), float("inf"), float("-inf")])
+def test_rejects_non_finite_default_floor(default_floor):
+    with pytest.raises(ValueError, match="default_floor"):
+        BaselineManager(default_floor=default_floor)
+
+
 @pytest.mark.parametrize(
     ("provenance", "quality", "available", "reason"),
     [
