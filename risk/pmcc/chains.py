@@ -34,7 +34,7 @@ class TemporalChainBuilder:
         # Equal timestamps are legitimate for multimodal daily aggregates.
         # Tie-break by the explicit event ID so chains are reproducible even
         # when feature extraction order changes.
-        ordered = tuple(sorted(events, key=lambda event: (event.occurred_at, _event_id(event))))
+        ordered = tuple(sorted(events, key=_event_order_key))
         by_subject: dict[str, list[ChangeEvent]] = {}
         for event in ordered:
             by_subject.setdefault(event.subject_id, []).append(event)
@@ -143,6 +143,15 @@ def _bounded(value: object) -> float:
 def _event_id(event: ChangeEvent) -> str:
     value = event.provenance.get("event_id")
     return value if isinstance(value, str) and value else f"{event.feature}:{event.occurred_at.isoformat()}"
+
+
+_NODE_ORDER = {"physiology": 0, "sleep": 1, "activity": 2, "gait": 2, "sit_to_stand": 3, "near_fall": 4}
+
+
+def _event_order_key(event: ChangeEvent) -> tuple[datetime, int, str]:
+    # For simultaneous multimodal changes, use the registered association
+    # direction as the deterministic tie-break, then the stable event ID.
+    return (event.occurred_at, _NODE_ORDER.get(_node(event.feature), 99), _event_id(event))
 
 
 def _require_strictly_chronological(timestamps: tuple[datetime, ...], name: str) -> None:

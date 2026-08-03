@@ -60,6 +60,18 @@ def test_chain_builder_accepts_equal_timestamp_events_deterministically():
     assert chains[0].provenance["gap_hours"] == (0.0,)
 
 
+def test_equal_timestamp_registered_direction_is_stable_across_input_order():
+    forward = TemporalChainBuilder().build((
+        event("sleep_duration_minutes", 0), event("activity_level", 0),
+    ))
+    reverse = TemporalChainBuilder().build((
+        event("activity_level", 0), event("sleep_duration_minutes", 0),
+    ))
+
+    assert forward == reverse
+    assert len(forward) == 1
+
+
 def test_chain_builder_rejects_duplicate_event_ids():
     first = event("sleep_duration_minutes", 0)
     duplicate = event("step_count", 0)

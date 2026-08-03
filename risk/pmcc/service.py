@@ -34,11 +34,15 @@ class PMCCService:
     def __init__(
         self,
         *,
-        model: SurvivalRiskModel | None = None,
+        model: SurvivalRiskModel | str | Path | None = None,
         feedback_path: str | Path | None = None,
         observations: Sequence[DailyObservation] = (),
         population_priors: dict[str, tuple[float, float]] | None = None,
     ) -> None:
+        if isinstance(model, (str, Path)):
+            from .calibrator import RuleSurvivalCalibrator
+
+            model = RuleSurvivalCalibrator.load_artifact(model)
         self._model = model
         self._feedback = FeedbackStore(feedback_path) if feedback_path is not None else None
         self._priors = dict(population_priors or {})
@@ -263,7 +267,7 @@ def _evidence_groups(records: Sequence[DailyObservation]) -> int:
             name = feature.lower()
             if any(token in name for token in ("heart", "spo2", "pressure", "respir", "physiology")):
                 groups.add("physiology")
-            elif any(token in name for token in ("step", "gait", "sway", "stride", "sit", "activity", "balance")):
+            elif any(token in name for token in ("vision", "pose", "step", "gait", "sway", "stride", "sit", "activity", "balance", "mobility")):
                 groups.add("vision_activity")
     return len(groups)
 
