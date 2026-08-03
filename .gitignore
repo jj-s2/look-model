@@ -74,6 +74,8 @@ datasets/processed/**/*.npz
 datasets/processed/**/*.npy
 datasets/annotations/**/*.json
 !datasets/annotations/.gitkeep
+datasets/annotations/unified/**
+!datasets/annotations/unified/.gitkeep
 !datasets/raw/.gitkeep
 !datasets/processed/.gitkeep
 !datasets/splits/.gitkeep
