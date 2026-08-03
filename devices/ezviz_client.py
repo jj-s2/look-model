@@ -69,13 +69,36 @@ class EzvizClient:
             raise EzvizApiError("invalid_response", "missing device list", DEVICE_LIST_ENDPOINT)
         return [self._device_from_payload(item) for item in data if isinstance(item, Mapping)]
 
-    def get_live_address(self, device_serial: str, channel_no: int = 1) -> str:
+    def get_live_address(
+        self,
+        device_serial: str,
+        channel_no: int = 1,
+        device_code: str | None = None,
+        protocol: int | None = None,
+        quality: int | None = None,
+    ) -> str:
         if channel_no < 1:
             raise ValueError("channel_no must be at least 1")
+        if protocol is not None and protocol not in (1, 2, 3, 4):
+            raise ValueError("protocol must be one of 1 (ezopen), 2 (hls), 3 (rtmp), or 4 (flv)")
+        if quality is not None and quality not in (1, 2):
+            raise ValueError("quality must be 1 (hd) or 2 (smooth)")
+        body: dict[str, object] = {
+            "accessToken": self._require_access_token(),
+            "deviceSerial": device_serial,
+            "channelNo": channel_no,
+        }
+        if device_code:
+            # The Open Platform REST API calls the device verification code `code`.
+            body["code"] = device_code
+        if protocol is not None:
+            body["protocol"] = protocol
+        if quality is not None:
+            body["quality"] = quality
         data = self._post(
             LIVE_ADDRESS_ENDPOINT,
-            {"accessToken": self._require_access_token(), "deviceSerial": device_serial, "channelNo": channel_no},
-            secrets=(device_serial,),
+            body,
+            secrets=(device_serial, device_code or ""),
         )
         url = data.get("url")
         if not isinstance(url, str) or not url:

@@ -56,6 +56,40 @@ def test_live_address_is_extracted_from_success_response(fake_session: FakeSessi
     assert fake_session.last_call["data"] == {"accessToken": "token", "deviceSerial": "SERIAL", "channelNo": 1}
 
 
+def test_live_address_sends_device_encryption_code_when_configured(fake_session: FakeSession) -> None:
+    fake_session.queue({"code": "200", "data": {"url": "https://open.ys7.com/v3/openlive/test.m3u8"}})
+    client = EzvizClient(
+        "key", "secret", session=fake_session, access_token=AccessToken("token", 9_999_999_999_999)
+    )
+
+    client.get_live_address("SERIAL", 1, device_code="ABC123")
+
+    assert fake_session.last_call["data"] == {
+        "accessToken": "token",
+        "deviceSerial": "SERIAL",
+        "channelNo": 1,
+        "code": "ABC123",
+    }
+
+
+def test_live_address_can_request_hls_for_frame_consumers(fake_session: FakeSession) -> None:
+    fake_session.queue({"code": "200", "data": {"url": "https://open.ys7.com/v3/openlive/test.m3u8"}})
+    client = EzvizClient(
+        "key", "secret", session=fake_session, access_token=AccessToken("token", 9_999_999_999_999)
+    )
+
+    client.get_live_address("SERIAL", 1, device_code="ABC123", protocol=2, quality=2)
+
+    assert fake_session.last_call["data"] == {
+        "accessToken": "token",
+        "deviceSerial": "SERIAL",
+        "channelNo": 1,
+        "code": "ABC123",
+        "protocol": 2,
+        "quality": 2,
+    }
+
+
 def test_list_devices_uses_official_fields_and_keeps_raw_capabilities(fake_session: FakeSession) -> None:
     fake_session.queue(
         {

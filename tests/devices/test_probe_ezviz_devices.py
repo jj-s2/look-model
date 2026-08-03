@@ -80,6 +80,20 @@ def test_short_serial_is_fully_masked(capsys: object) -> None:
     assert "serial=***" in output
 
 
+def test_live_report_labels_inventory_as_live_evidence(tmp_path: Path) -> None:
+    from devices.models import EzvizDevice
+
+    report = tmp_path / "live-report.md"
+    module = _probe_module()
+    module._write_report(report, [EzvizDevice("ABCDEF1234", "CS-C6C", True, 1, "unknown", {})], fixture=False)
+
+    text = report.read_text(encoding="utf-8")
+
+    assert "**live inventory**" in text
+    assert "generated from an offline fixture" not in text
+    assert "live inventory; no live stream" in text
+
+
 def test_probe_without_credentials_names_missing_variables_only() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/probe_ezviz_devices.py"],

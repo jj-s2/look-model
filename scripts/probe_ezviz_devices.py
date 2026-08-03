@@ -47,11 +47,20 @@ def _offline_devices(path: Path) -> list[EzvizDevice]:
 
 def _write_report(path: Path, devices: list[EzvizDevice], *, fixture: bool) -> None:
     """Write only observed capability state; fixture mode is never live evidence."""
+    if fixture:
+        evidence_lines = [
+            "- **unavailable**: this report was generated from an offline fixture; no network request was made.",
+            "- No real C6c, live stream, intercom, or SDNL1 data-field validation is claimed.",
+        ]
+    else:
+        evidence_lines = [
+            "- **live inventory**: device list and online state came from a successful EZVIZ Open Platform response.",
+            "- This is live inventory; no live stream, intercom, or SDNL1 data-field validation is claimed.",
+        ]
     lines = [
         "# Device capability report", "",
         "## Evidence status", "",
-        "- **unavailable**: this report was generated from an offline fixture; no network request was made.",
-        "- No real C6c, live stream, intercom, or SDNL1 data-field validation is claimed.",
+        *evidence_lines,
         "- A live probe may replace a capability only with an observed API response; missing fields remain `unavailable`.",
         "", "## Device inventory", "",
         "| Device/model | Online | Live stream | Intercom | SDNL1 data fields | Evidence |",
