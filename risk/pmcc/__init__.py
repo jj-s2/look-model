@@ -22,4 +22,20 @@ __all__ = [
     "OutcomeType",
     "PMCCForecast",
     "TemporalChain",
+    "OptionalTCNSurvivalModel",
+    "RuleSurvivalCalibrator",
+    "SurvivalRiskModel",
 ]
+
+
+def __getattr__(name: str):
+    """Expose optional PMCC model contracts without importing ML extras."""
+    if name in {"OptionalTCNSurvivalModel", "RuleSurvivalCalibrator", "SurvivalRiskModel"}:
+        from .survival import OptionalTCNSurvivalModel, RuleSurvivalCalibrator, SurvivalRiskModel
+
+        return {
+            "OptionalTCNSurvivalModel": OptionalTCNSurvivalModel,
+            "RuleSurvivalCalibrator": RuleSurvivalCalibrator,
+            "SurvivalRiskModel": SurvivalRiskModel,
+        }[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import expm1, isfinite, log1p
 from numbers import Real
-from typing import Sequence
+from typing import Any, Sequence
 
 
 _HORIZON_DAYS = {"24h": 1, "72h": 3, "7d": 7}
@@ -59,3 +59,26 @@ def _validate_hazards(hazards: Sequence[float]) -> tuple[float, ...]:
             raise ValueError("hazards must be within [0, 1]")
         checked.append(float(value))
     return tuple(checked)
+
+
+def __getattr__(name: str) -> Any:
+    """Lazily expose model contracts without a survival/calibrator cycle."""
+    if name in {"OptionalTCNSurvivalModel", "RuleSurvivalCalibrator", "SurvivalRiskModel"}:
+        from .calibrator import OptionalTCNSurvivalModel, RuleSurvivalCalibrator, SurvivalRiskModel
+
+        return {
+            "OptionalTCNSurvivalModel": OptionalTCNSurvivalModel,
+            "RuleSurvivalCalibrator": RuleSurvivalCalibrator,
+            "SurvivalRiskModel": SurvivalRiskModel,
+        }[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "OptionalTCNSurvivalModel",
+    "RuleSurvivalCalibrator",
+    "SurvivalLabel",
+    "SurvivalRiskModel",
+    "cumulative_risk_for_horizons",
+    "hazards_to_cumulative",
+]

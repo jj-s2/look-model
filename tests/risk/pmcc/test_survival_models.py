@@ -32,6 +32,17 @@ def test_cpu_calibrator_module_imports_without_eager_sklearn_import():
     assert module.RuleSurvivalCalibrator is not None
 
 
+def test_documented_survival_and_package_import_paths_expose_calibrator_contracts():
+    # Regression target: callers following the implementation plan must not
+    # need to know the internal calibrator module layout.
+    from risk.pmcc import OptionalTCNSurvivalModel as PackageTCN
+    from risk.pmcc import RuleSurvivalCalibrator as PackageCalibrator
+    from risk.pmcc.survival import OptionalTCNSurvivalModel, RuleSurvivalCalibrator
+
+    assert PackageCalibrator is RuleSurvivalCalibrator
+    assert PackageTCN is OptionalTCNSurvivalModel
+
+
 def test_calibrator_refuses_training_labels_with_only_one_class():
     from risk.pmcc.calibrator import RuleSurvivalCalibrator
 
