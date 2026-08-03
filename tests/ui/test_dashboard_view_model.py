@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from core.events import DataQuality, EventType, SensorEvent, Source
 from pipeline.live_service import LiveMonitoringService
 from ui.dashboard import dashboard_view_model, start_gds15_screening, submit_gds15_answers
+from fusion.decision_engine import RiskDecision
+from pipeline.live_service import ServiceSnapshot
 
 
 NOW = datetime(2026, 8, 2, 9, tzinfo=timezone.utc)
@@ -43,3 +45,18 @@ def test_user_initiated_gds_flow_loads_fifteen_questions_then_scores_answers() -
     assert result["score"] == 15
     assert result["is_diagnosis"] is False
     assert "筛查不构成诊断" in result["notice"]
+
+
+def test_dashboard_separates_emergency_prefall_forecast_and_wellbeing():
+    decisions = (
+        RiskDecision("fall_event", "critical", 1.0, (), "vision_only", "check", "a", NOW),
+        RiskDecision("prefall_warning", "warning", .8, (), "vision_only", "check", "a", NOW),
+        RiskDecision("fall_forecast", "warning", .7, (), "vision_only", "check", "a", NOW),
+        RiskDecision("wellbeing_change", "watch", .4, (), "screening_only", "check", "a", NOW),
+    )
+    snapshot = ServiceSnapshot(NOW, "healthy", "offline", decisions, (), False)
+    model = dashboard_view_model(snapshot)
+    assert len(model["emergency_events"]) == 1
+    assert len(model["prefall_warnings"]) == 1
+    assert len(model["fall_forecasts"]) == 1
+    assert len(model["wellbeing_prompts"]) == 1

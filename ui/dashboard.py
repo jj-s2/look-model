@@ -45,13 +45,18 @@ def submit_gds15_answers(answers: Mapping[str, bool], gds: GDS15 | None = None) 
 
 def dashboard_view_model(snapshot: ServiceSnapshot) -> dict[str, Any]:
     """Create redaction-safe display data without importing Gradio or a browser."""
+    def display(decision):
+        return {"level": decision.level, "score": decision.score, "evidence": list(decision.reasons)}
+
     fall_events = [
-        {"level": decision.level, "score": decision.score, "evidence": list(decision.reasons)}
+        display(decision)
         for decision in snapshot.decisions
         if decision.kind == "fall_event"
     ]
+    prefall_warnings = [display(decision) for decision in snapshot.decisions if decision.kind == "prefall_warning"]
+    fall_forecasts = [display(decision) for decision in snapshot.decisions if decision.kind == "fall_forecast"]
     wellbeing_changes = [
-        {"level": decision.level, "score": decision.score, "evidence": list(decision.reasons)}
+        display(decision)
         for decision in snapshot.decisions
         if decision.kind == "wellbeing_change"
     ]
@@ -59,8 +64,13 @@ def dashboard_view_model(snapshot: ServiceSnapshot) -> dict[str, Any]:
         "watermark": "演示数据 / demo=true" if snapshot.demo else "",
         "device_quality": {"camera": snapshot.camera_health, "radar": snapshot.radar_health},
         "fall_events": fall_events,
+        "emergency_events": [item for item, decision in zip(fall_events, (d for d in snapshot.decisions if d.kind == "fall_event")) if decision.level == "critical"],
+        "prefall_warnings": prefall_warnings,
+        "fall_forecasts": fall_forecasts,
         "fall_trend": [item["score"] for item in fall_events],
+        "prefall_trend": [item["score"] for item in prefall_warnings],
         "wellbeing_changes": wellbeing_changes,
+        "wellbeing_prompts": wellbeing_changes,
         "wellbeing_trend": [item["score"] for item in wellbeing_changes],
         "evidence": [reason for decision in snapshot.decisions for reason in decision.reasons],
         "alert_history": list(snapshot.alert_history),
@@ -82,8 +92,8 @@ def build_dashboard(service: LiveMonitoringService):
     def refresh():
         model = dashboard_view_model(service.step())
         return (
-            model["watermark"], model["device_quality"], model["latest_frame"], model["fall_events"],
-            model["fall_trend"], model["wellbeing_changes"], model["wellbeing_trend"], model["evidence"],
+            model["watermark"], model["device_quality"], model["latest_frame"], model["emergency_events"],
+            model["prefall_warnings"], model["fall_forecasts"], model["fall_trend"], model["wellbeing_prompts"], model["wellbeing_trend"], model["evidence"],
             model["alert_history"], model["errors"],
         )
 
@@ -107,10 +117,12 @@ def build_dashboard(service: LiveMonitoringService):
         with gr.Row():
             device_quality = gr.JSON(label="设备在线与质量")
             latest_frame = gr.Image(label="实时画面", type="numpy")
-        fall_events = gr.JSON(label="跌倒事件")
+        fall_events = gr.JSON(label="已确认跌倒事件")
+        prefall_warnings = gr.JSON(label="跌倒前预警")
+        fall_forecasts = gr.JSON(label="跌倒风险预测")
         fall_trend = gr.JSON(label="跌倒趋势")
         gr.Markdown("## 心理健康变化趋势\n" + SCREENING_NOTICE)
-        wellbeing_changes = gr.JSON(label="心理变化")
+        wellbeing_changes = gr.JSON(label="心理变化提示")
         wellbeing_trend = gr.JSON(label="心理趋势")
         evidence = gr.JSON(label="证据说明")
         alert_history = gr.JSON(label="告警历史")
@@ -126,8 +138,8 @@ def build_dashboard(service: LiveMonitoringService):
         refresh_button = gr.Button("刷新本地状态")
         refresh_button.click(
             refresh,
-            outputs=[watermark, device_quality, latest_frame, fall_events, fall_trend, wellbeing_changes,
-                     wellbeing_trend, evidence, alert_history, errors],
+            outputs=[watermark, device_quality, latest_frame, fall_events, prefall_warnings, fall_forecasts,
+                     fall_trend, wellbeing_changes, wellbeing_trend, evidence, alert_history, errors],
         )
         gds_start.click(begin_gds15, outputs=[gds_panel, gds_status])
         gds_submit.click(submit_gds15, inputs=gds_answers, outputs=gds_status)
