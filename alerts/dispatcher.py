@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from alerts.models import DispatchResult
+from alerts.delivery.base import DeliveryAdapter, DeliveryResult
 from fusion.decision_engine import RiskDecision
 
 
@@ -18,13 +19,14 @@ class AlertDispatcher:
     remains safe to exercise with fake events and writes only local JSONL.
     """
 
-    def __init__(self, path: Path, cooldown: timedelta = timedelta(minutes=15)) -> None:
+    def __init__(self, path: Path, cooldown: timedelta = timedelta(minutes=15), delivery: DeliveryAdapter | None = None) -> None:
         if cooldown <= timedelta(0):
             raise ValueError("cooldown must be positive")
         self.path = Path(path)
         self.cooldown = cooldown
         self._last_sent: dict[str, datetime] = {}
         self._active_fall_levels: dict[str, str] = {}
+        self.delivery = delivery
         self._restore_state()
 
     def dispatch(self, decision: RiskDecision) -> DispatchResult:
@@ -45,6 +47,14 @@ class AlertDispatcher:
         if not is_escalation and last_sent is not None and abs(decision.timestamp - last_sent) < self.cooldown:
             return DispatchResult(False, "duplicate within cooldown", key)
         self._append(decision, sent=True)
+        delivery_results: tuple[DeliveryResult, ...] = ()
+        if self.delivery is not None:
+            try:
+                raw_results = self.delivery.send(decision)
+                delivery_results = tuple(raw_results) if isinstance(raw_results, (list, tuple)) else (raw_results,)
+            except Exception:
+                delivery_results = (DeliveryResult("delivery", False, "delivery_adapter_failed", datetime.now(decision.timestamp.tzinfo)),)
+            self._update_last_delivery(delivery_results)
         self._last_sent[key] = decision.timestamp
         if decision.kind == "fall_event":
             self._active_fall_levels[decision.subject_id] = decision.level
@@ -111,5 +121,21 @@ class AlertDispatcher:
         with self.path.open("a", encoding="utf-8") as destination:
             json.dump(record, destination, ensure_ascii=False, separators=(",", ":"))
             destination.write("\n")
+
+    def _update_last_delivery(self, results: tuple[DeliveryResult, ...]) -> None:
+        """Attach network outcomes after the local audit record already exists."""
+        if not self.path.exists():
+            return
+        lines = self.path.read_text(encoding="utf-8").splitlines()
+        if not lines:
+            return
+        try:
+            record = json.loads(lines[-1])
+        except json.JSONDecodeError:
+            return
+        if isinstance(record, dict):
+            record["delivery"] = [result.to_dict() for result in results]
+            lines[-1] = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
+            self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     _LEVEL_RANK = {"info": 0, "watch": 1, "warning": 2, "critical": 3}
