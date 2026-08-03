@@ -70,6 +70,24 @@ def test_model_error_degrades_to_cpu_rule_path() -> None:
     assert "model_inference_failed" in forecast.provenance["degradation_reasons"]
 
 
+def test_insufficient_independent_uncertainty_members_abstains_instead_of_zero_width() -> None:
+    class UnstableModel:
+        def predict_hazards(self, _features: object) -> tuple[float, ...]:
+            return (0.1,) * 7
+
+        def predict_hazard_members(self, _features: object) -> tuple[tuple[float, ...], ...]:
+            return ((0.0,) * 7, (1.0,) * 7)
+
+    service, as_of = _service_with_history()
+    service = PMCCService(model=UnstableModel(), observations=service.observations())
+
+    forecast = service.forecast("resident-1", as_of)
+
+    assert forecast.provenance["abstained"] is True
+    assert "insufficient_uncertainty_members" in forecast.provenance["reasons"]
+    assert forecast.provenance["uncertainty_width_72h"] is None
+
+
 def test_synthetic_evidence_refuses_release_mode() -> None:
     service, as_of = _service_with_history(tier=EvidenceTier.SYNTHETIC_RESEARCH)
 

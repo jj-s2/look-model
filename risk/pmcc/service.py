@@ -7,9 +7,11 @@ existing event state machine.
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from hashlib import sha256
 from math import isfinite
 from numbers import Real
 from pathlib import Path
+from random import Random
 from typing import Sequence
 
 from .baseline import BaselineManager
@@ -20,7 +22,7 @@ from .features import FeatureWindow, build_feature_window
 from .feedback import FeedbackStore
 from .schema import BaselineState, DailyObservation, DecisionBand, EvidenceTier, OutcomeFeedback, PMCCForecast, TemporalChain
 from .survival import SurvivalRiskModel, cumulative_risk_for_horizons, hazards_to_cumulative
-from .uncertainty import UncertaintyGate
+from .uncertainty import UncertaintyGate, UncertaintySummary
 
 
 _NON_RELEASE_TIERS = {EvidenceTier.SYNTHETIC_RESEARCH, EvidenceTier.OFFLINE_FIXTURE}
@@ -78,12 +80,12 @@ class PMCCService:
         changes = detect_changes(records, baseline)
         chains = TemporalChainBuilder().build(changes)
         window = build_feature_window(records, baseline, chains, as_of)
-        hazards, model_name, degradation = self._predict_hazards(window)
+        hazards, hazard_members, model_name, degradation = self._predict_hazards(window)
         cumulative = hazards_to_cumulative(hazards)
         risk = cumulative_risk_for_horizons(hazards)
         coverage, quality = _window_reliability(window)
         evidence_tier, promoted = _evidence(records)
-        uncertainty = UncertaintyGate().evaluate((cumulative,) * 5, coverage, quality, evidence_tier, release_mode)
+        uncertainty = _evaluate_uncertainty(hazard_members, coverage, quality, evidence_tier, release_mode)
         state = _overall_baseline_state(baseline, records)
         decision = make_forecast_decision(risk, uncertainty, state, _evidence_groups(records), promoted)
         best_chain = _best_chain(chains)
@@ -97,6 +99,7 @@ class PMCCService:
             "degradation_reasons": degradation,
             "coverage": coverage,
             "quality": quality,
+            "uncertainty_width_72h": None if uncertainty.width_72h == float("inf") else uncertainty.width_72h,
             "evidence_tier": evidence_tier.value,
             "promoted": promoted,
             "abstained": decision.abstained,
@@ -133,15 +136,20 @@ class PMCCService:
             raise ValueError("subject has no observations")
         return records
 
-    def _predict_hazards(self, window: FeatureWindow) -> tuple[tuple[float, ...], str, tuple[str, ...]]:
+    def _predict_hazards(
+        self, window: FeatureWindow
+    ) -> tuple[tuple[float, ...], tuple[tuple[float, ...], ...], str, tuple[str, ...]]:
         if self._model is None:
-            return _cpu_rule_hazards(window), "cpu_rule", ()
+            return _cpu_rule_hazards(window), _cpu_rule_hazard_members(window), "cpu_rule", ()
         try:
-            return _validate_hazards(self._model.predict_hazards(window)), "configured_model", ()
+            hazards = _validate_hazards(self._model.predict_hazards(window))
+            member_predictor = getattr(self._model, "predict_hazard_members", None)
+            members = () if member_predictor is None else tuple(_validate_hazards(member) for member in member_predictor(window))
+            return hazards, members, "configured_model", ()
         except Exception:
             # A failed optional/model load must never make a monitoring loop
             # contact hardware or produce an unbounded score.
-            return _cpu_rule_hazards(window), "cpu_rule_fallback", ("model_inference_failed",)
+            return _cpu_rule_hazards(window), _cpu_rule_hazard_members(window), "cpu_rule_fallback", ("model_inference_failed",)
 
 
 def _cpu_rule_hazards(window: FeatureWindow) -> tuple[float, ...]:
@@ -150,6 +158,28 @@ def _cpu_rule_hazards(window: FeatureWindow) -> tuple[float, ...]:
     observed = [row[chain_index] for row, mask in zip(window.values, window.missing_mask) if not mask[chain_index]]
     chain_strength = max(observed, default=0.0)
     coverage, quality = _window_reliability(window)
+    return _rule_hazards(chain_strength, coverage, quality)
+
+
+def _cpu_rule_hazard_members(window: FeatureWindow) -> tuple[tuple[float, ...], ...]:
+    """Five reproducible bootstrap resamples for the CPU rule uncertainty gate."""
+    seed = int.from_bytes(sha256(repr((window.values, window.missing_mask, window.quality)).encode()).digest()[:8], "big")
+    chain_index = window.feature_names.index("chain_strength")
+    raw_indices = tuple(index for index, name in enumerate(window.feature_names) if name.endswith(":raw"))
+    members: list[tuple[float, ...]] = []
+    for member in range(5):
+        generator = Random(seed + member)
+        sample = [generator.randrange(len(window.values)) for _ in range(len(window.values))]
+        chain_strength = max((window.values[row][chain_index] for row in sample), default=0.0)
+        observed = [not window.missing_mask[row][index] for row in sample for index in raw_indices]
+        scores = [window.quality[row][index] for row in sample for index in raw_indices if not window.missing_mask[row][index]]
+        coverage = sum(observed) / len(observed) if observed else 0.0
+        quality = sum(scores) / len(scores) if scores else 0.0
+        members.append(_rule_hazards(chain_strength, coverage, quality))
+    return tuple(members)
+
+
+def _rule_hazards(chain_strength: float, coverage: float, quality: float) -> tuple[float, ...]:
     base = min(0.25, 0.01 + 0.12 * chain_strength + 0.03 * (1.0 - coverage) + 0.02 * (1.0 - quality))
     return tuple(min(0.5, base * factor) for factor in (1.0, 0.95, 0.9, 0.8, 0.7, 0.65, 0.6))
 
@@ -161,6 +191,30 @@ def _validate_hazards(values: Sequence[float]) -> tuple[float, ...]:
     if any(isinstance(value, bool) or not isinstance(value, Real) or not isfinite(float(value)) or not 0 <= float(value) <= 1 for value in hazards):
         raise ValueError("model hazards must be finite probabilities")
     return tuple(float(value) for value in hazards)
+
+
+def _evaluate_uncertainty(
+    hazard_members: Sequence[Sequence[float]],
+    coverage: float,
+    quality: float,
+    evidence_tier: EvidenceTier,
+    release_mode: bool,
+) -> UncertaintySummary:
+    """Never convert one prediction into a fictitious zero-width interval."""
+    cumulative_members = tuple(hazards_to_cumulative(member) for member in hazard_members)
+    if len(cumulative_members) < 5:
+        reasons = ["insufficient_uncertainty_members"]
+        if coverage < 0.5:
+            reasons.append("insufficient_coverage")
+        if quality < 0.5:
+            reasons.append("insufficient_quality")
+        if release_mode and evidence_tier in _NON_RELEASE_TIERS:
+            reasons.append("non_release_evidence")
+        return UncertaintySummary(
+            lower=(), median=(), upper=(), width_72h=float("inf"), abstained=True,
+            reasons=tuple(reasons),
+        )
+    return UncertaintyGate().evaluate(cumulative_members, coverage, quality, evidence_tier, release_mode)
 
 
 def _window_reliability(window: FeatureWindow) -> tuple[float, float]:
