@@ -51,6 +51,21 @@ Gradio 或设备 SDK。
 零的占位向量，因此界面会保留质量标记，不会把未训练的短时特征伪装成已验证能力。
 后续若补齐短时嵌入，应单独训练、按受试者划分验证，并更新 release ID 与指标。
 
+## 生成算法效果图
+
+使用冻结的 test split 重新推理并生成 ROC/PR、混淆矩阵、阈值权衡、校准和得分分布图：
+
+```powershell
+python scripts/plot_phase_results.py `
+  --checkpoint outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt `
+  --device auto `
+  --output-dir docs/figures/padtfs-gmdcsa24-gpu-norm
+```
+
+本次留出测试结果为 32 个片段、ROC-AUC 0.836、Precision 0.800、Recall 0.750、
+F1 0.774。完整指标和图表见
+`docs/figures/padtfs-gmdcsa24-gpu-norm/`；这些是数据集留出测试证据，不等同于临床或现场设备效果。
+
 `Settings.from_env()` 会自动读取项目根目录的本地 `.env`（系统环境变量优先），因此已配置的萤石账号可以直接执行：
 
 ```powershell
