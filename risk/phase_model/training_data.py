@@ -60,6 +60,7 @@ class PhaseSample:
     short_embedding: object | None
     long_pose: object
     record: Mapping[str, object]
+    short_quality: float = 0.0
 
 
 def subject_folds(
@@ -86,7 +87,7 @@ def augment_pose(pose: object, rng: object, config: AugmentationConfig) -> objec
         raise ValueError("pose must have shape (time, 17, 3)")
     if not isinstance(config, AugmentationConfig):
         raise TypeError("config must be an AugmentationConfig")
-    if not hasattr(rng, "random") or not hasattr(rng, "uniform") or not hasattr(rng, "normal"):
+    if not all(hasattr(rng, name) for name in ("random", "uniform", "normal", "integers")):
         raise TypeError("rng must provide NumPy Generator-style random methods")
 
     array = _time_scale(array, rng, config)
@@ -97,13 +98,16 @@ def augment_pose(pose: object, rng: object, config: AugmentationConfig) -> objec
     if config.noise_std:
         visible = array[..., 2] > 0.0
         noise = rng.normal(0.0, config.noise_std, size=array[..., :2].shape).astype(np.float32)
-        array[..., :2] += noise * visible[..., None]
+        scale = _pose_scales(array)
+        array[..., :2] += noise * scale[:, None, None] * visible[..., None]
     if config.keypoint_dropout:
         dropped = rng.random(array.shape[:2]) < config.keypoint_dropout
         array[dropped] = 0.0
     if config.frame_mask_probability:
-        masked_frames = rng.random(array.shape[0]) < config.frame_mask_probability
-        array[masked_frames] = 0.0
+        if rng.random() < config.frame_mask_probability:
+            length = min(array.shape[0], int(rng.integers(2, 7)))
+            start = int(rng.integers(0, array.shape[0] - length + 1))
+            array[start : start + length] = 0.0
     return array
 
 
@@ -121,6 +125,33 @@ def _time_scale(array: object, rng: object, config: AugmentationConfig) -> objec
     upper = np.minimum(lower + 1, frames - 1)
     fraction = (scaled - lower).astype(np.float32)[:, None, None]
     return pose[lower] * (1.0 - fraction) + pose[upper] * fraction
+
+
+def _pose_scales(pose: object) -> object:
+    """Return the same per-frame body scale used by pose normalization."""
+    import numpy as np
+
+    array = np.asarray(pose, dtype=np.float32)
+    scales = np.zeros(array.shape[0], dtype=np.float32)
+    for index, frame in enumerate(array):
+        visible = frame[:, 2] >= 0.25
+        hips_visible = bool(visible[11] and visible[12])
+        shoulders_visible = bool(visible[5] and visible[6])
+        if hips_visible:
+            origin = (frame[11, :2] + frame[12, :2]) / 2.0
+        elif np.any(visible):
+            origin = frame[visible, :2].mean(axis=0)
+        else:
+            continue
+        if hips_visible and shoulders_visible:
+            shoulder = (frame[5, :2] + frame[6, :2]) / 2.0
+            scale = float(np.linalg.norm(shoulder - origin))
+        else:
+            spread = frame[visible, :2] - origin
+            scale = float(np.sqrt(np.mean(spread * spread))) if spread.size else 0.0
+        if np.isfinite(scale) and scale > 1e-6:
+            scales[index] = scale
+    return scales
 
 
 class PhasePoseDataset:
@@ -158,7 +189,7 @@ class PhasePoseDataset:
 
     def __getitem__(self, index: int) -> PhaseSample:
         clip = self._clips[index]
-        raw_pose, short_embedding = self._load_cache(clip)
+        raw_pose, _short_embedding = self._load_cache(clip)
         pose = raw_pose
         if self._train:
             import numpy as np
@@ -168,7 +199,7 @@ class PhasePoseDataset:
         return PhaseSample(
             clip_id=str(clip["clip_id"]),
             subject_id=str(clip["subject_id"]),
-            short_embedding=short_embedding,
+            short_embedding=None,
             long_pose=normalized,
             record=clip,
         )
@@ -188,8 +219,8 @@ class PhasePoseDataset:
             short = None
         else:
             raise ValueError(f"pose cache must be .npz or .npy: {path}")
-        if pose.ndim != 3 or pose.shape[1:] != (17, 3):
-            raise ValueError(f"long_pose must have shape (time, 17, 3): {path}")
+        if pose.shape != (64, 17, 3):
+            raise ValueError(f"long_pose must have shape (64, 17, 3): {path}")
         return pose, short
 
     def _resolve_feature_path(self, clip: Mapping[str, object]) -> Path:
