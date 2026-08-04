@@ -28,6 +28,8 @@ class LongBranchTCN:
         _, nn = _torch()
         if joints <= 0 or hidden_dim <= 0:
             raise ValueError("joints and hidden_dim must be positive")
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError("dropout must be in [0, 1)")
         layers = []
         channels = joints * 3
         for dilation in (1, 2, 4):
@@ -45,11 +47,13 @@ class LongBranchTCN:
 
 
 class PhaseAwareFusionModel:
-    def __init__(self, *, short_dim: int = 512, joints: int = 17, hidden_dim: int = 128) -> None:
+    def __init__(self, *, short_dim: int = 512, joints: int = 17, hidden_dim: int = 128, dropout: float = 0.2) -> None:
         _, nn = _torch()
         if min(short_dim, joints, hidden_dim) <= 0:
             raise ValueError("model dimensions must be positive")
-        self.long_branch = LongBranchTCN(joints=joints, hidden_dim=hidden_dim)
+        if not 0.0 <= dropout < 1.0:
+            raise ValueError("dropout must be in [0, 1)")
+        self.long_branch = LongBranchTCN(joints=joints, hidden_dim=hidden_dim, dropout=dropout)
         self.short_projection = nn.Sequential(nn.Linear(short_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.GELU())
         self.long_projection = nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.LayerNorm(hidden_dim), nn.GELU())
         self.phase_head = nn.Linear(hidden_dim, 6)

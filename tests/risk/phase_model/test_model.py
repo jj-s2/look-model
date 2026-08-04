@@ -28,3 +28,16 @@ def test_model_rejects_zero_quality_when_torch_is_available():
     model = PhaseAwareFusionModel(short_dim=4, joints=17, hidden_dim=8)
     with pytest.raises(ValueError, match="quality"):
         model(torch.zeros(1, 4), torch.zeros(1, 8, 17, 3), torch.zeros(1), torch.zeros(1))
+
+
+def test_model_accepts_configurable_dropout():
+    pytest.importorskip("torch")
+    model = PhaseAwareFusionModel(short_dim=512, joints=17, hidden_dim=64, dropout=0.35)
+    assert model.long_branch.network[3].p == 0.35
+
+
+@pytest.mark.parametrize("dropout", (-0.01, 1.0))
+def test_model_rejects_dropout_outside_half_open_unit_interval(dropout):
+    pytest.importorskip("torch")
+    with pytest.raises(ValueError, match="dropout"):
+        PhaseAwareFusionModel(short_dim=16, joints=17, hidden_dim=32, dropout=dropout)

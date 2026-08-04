@@ -22,9 +22,17 @@ class MultiTaskLoss:
     components: Mapping[str, object]
 
 
-def compute_multitask_loss(outputs: PhaseModelOutputTensor, targets: LossTargets, supervision_mask: set[str]) -> MultiTaskLoss:
+def compute_multitask_loss(
+    outputs: PhaseModelOutputTensor,
+    targets: LossTargets,
+    supervision_mask: set[str],
+    *,
+    fall_label_smoothing: float = 0.0,
+) -> MultiTaskLoss:
     if not supervision_mask:
         raise ValueError("supervision mask cannot be empty")
+    if not 0.0 <= fall_label_smoothing < 0.5:
+        raise ValueError("fall_label_smoothing must be in [0, 0.5)")
     try:
         import torch
         import torch.nn.functional as F
@@ -36,7 +44,9 @@ def compute_multitask_loss(outputs: PhaseModelOutputTensor, targets: LossTargets
         if torch.any(valid):
             components["phase"] = F.cross_entropy(outputs.phase_logits[valid], targets.phase[valid].long())
     if "fall_event" in supervision_mask:
-        components["fall_event"] = F.binary_cross_entropy_with_logits(outputs.fall_event_logit, targets.fall_event.float())
+        labels = targets.fall_event.float()
+        labels = labels * (1.0 - 2.0 * fall_label_smoothing) + fall_label_smoothing
+        components["fall_event"] = F.binary_cross_entropy_with_logits(outputs.fall_event_logit, labels)
     if "prefall" in supervision_mask:
         valid = targets.prefall >= 0
         if torch.any(valid):
