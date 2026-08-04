@@ -24,6 +24,33 @@ python -m pytest tests/integration/test_monitoring_flow.py -q
 python scripts/run_pipeline.py --input <local-video.mp4>
 ```
 
+## 已发布模型的实时监测入口
+
+当前仓库已经把发布的 PA-DTSF 阶段模型接入统一实时服务：输入帧先经过
+YOLO11-pose 提取 17 点人体骨架，再进入短/长时间窗、质量门控、阶段预测、
+告警去重和本地看板。模型权重位于
+`outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt`。
+
+先用本地视频做不打开浏览器的 GPU/CPU 冒烟运行（运行时长由参数限定）：
+
+```powershell
+python scripts/run_live_monitor.py `
+  --checkpoint outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt `
+  --input <local-video.mp4> `
+  --device auto `
+  --smoke-seconds 10 `
+  --no-browser
+```
+
+需要本地 Gradio 看板时，去掉 `--no-browser`；输入可以是视频文件、摄像头编号
+（例如 `0`），或已由萤石平台授权返回的播放地址。播放地址只在本机进程中使用，
+不要把带令牌的完整地址写入日志、截图或 Git。`--help` 不会加载 Torch、YOLO、
+Gradio 或设备 SDK。
+
+当前发布检查点训练并验证的是长时骨架分支；实时适配器会对短时分支传入质量为
+零的占位向量，因此界面会保留质量标记，不会把未训练的短时特征伪装成已验证能力。
+后续若补齐短时嵌入，应单独训练、按受试者划分验证，并更新 release ID 与指标。
+
 `Settings.from_env()` 会自动读取项目根目录的本地 `.env`（系统环境变量优先），因此已配置的萤石账号可以直接执行：
 
 ```powershell

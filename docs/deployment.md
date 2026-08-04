@@ -19,6 +19,36 @@ The offline probe is the default safe verification route. It reads only
 `tests/fixtures/ezviz_offline_unavailable.json`, makes no HTTP request, and
 must report `unavailable`. It is not a device validation.
 
+## Released-model live runner
+
+The released normalized checkpoint can be exercised without the OpenMMLab
+stack. The runner uses the lazy Ultralytics pose adapter and the existing
+quality-gated `LiveMonitoringService`:
+
+```powershell
+python scripts/run_live_monitor.py `
+  --checkpoint outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt `
+  --input <local-video.mp4> --device auto `
+  --smoke-seconds 10 --no-browser
+```
+
+Use `--device cpu` for an offline compatibility check. Use `--device auto` on
+the verified RTX 4060 environment to select CUDA when it is available. A
+browser dashboard is optional; omit `--no-browser` to launch the local Gradio
+view. The runner prints only camera/radar health, decision counts, and error
+counts. Alerts are appended to `outputs/live/local_alerts.jsonl` and no video
+is written by default.
+
+The input may be a local replay, webcam index, or a playback address obtained
+through the authorized EZVIZ interface. Do not paste access tokens, device
+verification codes, or signed playback URLs into reports or shell history.
+The runner validates the checkpoint before opening the stream and always closes
+the stream and worker service on exit.
+
+The current release is long-branch-only in live inference: the short branch is
+passed a zero embedding with `short_quality=0`. This is an explicit quality
+boundary, not a claim that a short-term image embedding has been trained.
+
 ## Live-device route (only after a device is connected)
 
 1. Copy `.env.example` to `.env`, then set `EZVIZ_APP_KEY` and
