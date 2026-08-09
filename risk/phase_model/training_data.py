@@ -12,6 +12,7 @@ from typing import Mapping, Sequence
 
 from .normalization import normalize_pose_array
 from .temporal_features import build_temporal_features
+from .corruptions import corrupt_pose
 
 
 _COCO_LEFT_RIGHT_PAIRS = (
@@ -326,15 +327,50 @@ def collate_rgpc_samples(samples: Sequence[RGPCSample]) -> RGPCBatch:
 class RGPCDataset:
     """Deterministically expose normalized pose caches as RG-PCNet samples."""
 
-    def __init__(self, clips: Sequence[Mapping[str, object]], data_root: Path | str) -> None:
+    def __init__(
+        self,
+        clips: Sequence[Mapping[str, object]],
+        data_root: Path | str,
+        *,
+        corruption_probability: float = 0.0,
+        corruption_severity: float = 0.0,
+        corruption: str = "joint_dropout",
+        seed: int = 42,
+    ) -> None:
+        if not 0.0 <= float(corruption_probability) <= 1.0:
+            raise ValueError("corruption_probability must be in [0, 1]")
+        if not 0.0 <= float(corruption_severity) <= 1.0:
+            raise ValueError("corruption_severity must be in [0, 1]")
         self._pose_dataset = PhasePoseDataset(clips, data_root, train=False)
+        self._corruption_probability = float(corruption_probability)
+        self._corruption_severity = float(corruption_severity)
+        self._corruption = corruption
+        self._seed = int(seed)
+        self._epoch = 0
 
     def __len__(self) -> int:
         return len(self._pose_dataset)
 
+    def set_epoch(self, epoch: int) -> None:
+        """Change the deterministic corruption stream for a new training epoch."""
+        self._epoch = int(epoch)
+
     def __getitem__(self, index: int) -> RGPCSample:
         sample = self._pose_dataset[index]
-        temporal = build_temporal_features(sample.long_pose)
+        import numpy as np
+
+        rng = np.random.default_rng(self._seed + self._epoch * len(self) + index)
+        apply_corruption = rng.random() < self._corruption_probability
+        if apply_corruption:
+            corrupted = corrupt_pose(
+                sample.long_pose,
+                rng,
+                severity=self._corruption_severity,
+                corruption=self._corruption,
+            )
+        else:
+            corrupted = corrupt_pose(sample.long_pose, rng, severity=0.0, corruption=self._corruption)
+        temporal = build_temporal_features(corrupted.pose)
         phase_target, phase_mask = phase_targets_for_record(sample.record, len(temporal.values))
         return RGPCSample(
             clip_id=sample.clip_id,
@@ -344,7 +380,9 @@ class RGPCDataset:
             fall_target=float(str(sample.record.get("coarse_event", "")).lower() == "fall"),
             phase_target=phase_target,
             phase_mask=phase_mask,
-            reliability_target=temporal.valid_mask.astype("float32"),
+            reliability_target=corrupted.reliability_target * temporal.valid_mask.astype("float32"),
+            corruption=corrupted.corruption if apply_corruption else "clean",
+            corruption_severity=corrupted.severity if apply_corruption else 0.0,
         )
 
 
