@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -33,6 +35,14 @@ def _targets(*, fall=(1.0,), phase=None, phase_mask=None, reliability=None, vali
         reliability_target=torch.zeros(1, 2) if reliability is None else reliability,
         valid_mask=valid,
         dt=torch.tensor([[0.0, 0.1]]) if dt is None else dt,
+    )
+
+
+def _targets_on(device):
+    targets = _targets()
+    return RGPCLossTargets(
+        targets.fall_target.to(device), targets.phase_target.to(device), targets.phase_mask.to(device),
+        targets.reliability_target.to(device), targets.valid_mask.to(device), targets.dt.to(device),
     )
 
 
@@ -233,3 +243,76 @@ def test_loss_rejects_mismatched_target_shape_and_non_boolean_mask():
     malformed = _targets(phase=torch.zeros(1, 3, dtype=torch.long))
     with pytest.raises(ValueError, match="phase_target"):
         compute_rgpc_loss(output, malformed)
+
+
+@pytest.mark.parametrize(
+    ("field", "malformed"),
+    (
+        ("fall_logits", torch.zeros(1, 3)),
+        ("window_fall_logit", torch.zeros(1, 1)),
+        ("phase_logits", torch.zeros(1, 3, 3)),
+        ("reliability_logits", torch.zeros(1, 3)),
+        ("window_embedding", torch.zeros(2, 1)),
+        ("valid_mask", torch.ones(1, 3, dtype=torch.bool)),
+    ),
+)
+def test_loss_rejects_each_malformed_clean_output_field(field, malformed):
+    """Break caught: a public output field can have a shape incompatible with its logits."""
+    with pytest.raises(ValueError):
+        compute_rgpc_loss(replace(_output(), **{field: malformed}), _targets())
+
+
+@pytest.mark.parametrize(
+    ("field", "malformed"),
+    (
+        ("fall_logits", torch.zeros(1, 3)),
+        ("window_fall_logit", torch.zeros(1, 1)),
+        ("phase_logits", torch.zeros(1, 2, 2)),
+        ("reliability_logits", torch.zeros(1, 3)),
+        ("window_embedding", torch.zeros(2, 1)),
+        ("valid_mask", torch.ones(1, 3, dtype=torch.bool)),
+    ),
+)
+def test_loss_rejects_each_malformed_corrupted_output_field(field, malformed):
+    """Break caught: corrupt-path tensor shapes evade the public validation boundary."""
+    with pytest.raises(ValueError):
+        compute_rgpc_loss(_output(), _targets(), corrupted_output=replace(_output(), **{field: malformed}))
+
+
+def test_loss_rejects_a_structurally_valid_corrupted_output_with_other_time_shape():
+    """Break caught: corrupted outputs can be internally valid while not matching clean logits."""
+    corrupted = RGPCNetOutput(
+        fall_logits=torch.zeros(1, 3), window_fall_logit=torch.zeros(1), phase_logits=torch.zeros(1, 3, 3),
+        reliability_logits=torch.zeros(1, 3), window_embedding=torch.zeros(1, 1), valid_mask=torch.ones(1, 3, dtype=torch.bool),
+    )
+    with pytest.raises(ValueError, match="phase_logits must match"):
+        compute_rgpc_loss(_output(), _targets(), corrupted_output=corrupted)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+@pytest.mark.parametrize("field", ("fall_logits", "window_fall_logit", "phase_logits", "reliability_logits", "window_embedding", "valid_mask"))
+def test_loss_rejects_each_clean_output_field_on_the_wrong_device(field):
+    """Break caught: any one clean-output tensor can bypass the CUDA device contract."""
+    clean = _output(phase=torch.zeros(1, 2, 3, device="cuda"), reliability=torch.zeros(1, 2, device="cuda"), valid=torch.ones(1, 2, dtype=torch.bool, device="cuda"))
+    with pytest.raises(ValueError, match="device"):
+        compute_rgpc_loss(replace(clean, **{field: getattr(clean, field).cpu()}), _targets_on("cuda"))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+@pytest.mark.parametrize("field", ("fall_target", "phase_target", "phase_mask", "reliability_target", "valid_mask", "dt"))
+def test_loss_rejects_each_target_field_on_the_wrong_device(field):
+    """Break caught: any one target tensor can bypass the CUDA device contract."""
+    clean = _output(phase=torch.zeros(1, 2, 3, device="cuda"), reliability=torch.zeros(1, 2, device="cuda"), valid=torch.ones(1, 2, dtype=torch.bool, device="cuda"))
+    targets = _targets_on("cuda")
+    with pytest.raises(ValueError):
+        compute_rgpc_loss(clean, replace(targets, **{field: getattr(targets, field).cpu()}))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+@pytest.mark.parametrize("field", ("fall_logits", "window_fall_logit", "phase_logits", "reliability_logits", "window_embedding", "valid_mask"))
+def test_loss_rejects_each_corrupted_output_field_on_the_wrong_device(field):
+    """Break caught: any one corrupted-output tensor can bypass the CUDA device contract."""
+    clean = _output(phase=torch.zeros(1, 2, 3, device="cuda"), reliability=torch.zeros(1, 2, device="cuda"), valid=torch.ones(1, 2, dtype=torch.bool, device="cuda"))
+    corrupted = _output(phase=torch.zeros(1, 2, 3, device="cuda"), reliability=torch.zeros(1, 2, device="cuda"), valid=torch.ones(1, 2, dtype=torch.bool, device="cuda"))
+    with pytest.raises(ValueError, match="device"):
+        compute_rgpc_loss(clean, _targets_on("cuda"), corrupted_output=replace(corrupted, **{field: getattr(corrupted, field).cpu()}))
