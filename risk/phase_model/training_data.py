@@ -370,7 +370,8 @@ class RGPCDataset:
             )
         else:
             corrupted = corrupt_pose(sample.long_pose, rng, severity=0.0, corruption=self._corruption)
-        temporal = build_temporal_features(corrupted.pose)
+        timestamps = np.cumsum(corrupted.timestamp_scale, dtype=np.float32)
+        temporal = build_temporal_features(corrupted.pose, timestamps=timestamps)
         phase_target, phase_mask = phase_targets_for_record(sample.record, len(temporal.values))
         return RGPCSample(
             clip_id=sample.clip_id,
@@ -380,7 +381,7 @@ class RGPCDataset:
             fall_target=float(str(sample.record.get("coarse_event", "")).lower() == "fall"),
             phase_target=phase_target,
             phase_mask=phase_mask,
-            reliability_target=corrupted.reliability_target * temporal.valid_mask.astype("float32"),
+            reliability_target=corrupted.reliability_target,
             corruption=corrupted.corruption if apply_corruption else "clean",
             corruption_severity=corrupted.severity if apply_corruption else 0.0,
         )

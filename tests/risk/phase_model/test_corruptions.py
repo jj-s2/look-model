@@ -67,3 +67,38 @@ def test_dataset_records_a_clean_view_when_probability_skips_corruption(tmp_path
 
     assert sample.corruption == "clean"
     assert sample.corruption_severity == 0.0
+
+
+def test_time_jitter_changes_temporal_dt_without_reordering_frames(tmp_path):
+    """Break caught: time jitter is omitted when temporal features are constructed."""
+    pose = np.ones((64, 17, 3), dtype=np.float32)
+    pose[..., 0] = np.arange(17, dtype=np.float32)
+    pose[..., 1] = np.arange(17, dtype=np.float32) * 0.5
+    np.save(tmp_path / "clip.npy", pose)
+
+    sample = RGPCDataset(
+        [{"clip_id": "clip-1", "subject_id": "s1", "media_path": "clip.npy", "coarse_event": "adl"}],
+        tmp_path,
+        corruption_probability=1.0,
+        corruption_severity=1.0,
+        corruption="time_jitter",
+        seed=7,
+    )[0]
+
+    dt = sample.features[:, 102]
+    assert dt[0] == 0.0
+    assert np.all(dt[1:] > 0.0)
+    assert not np.allclose(dt[1:], 1.0)
+
+
+def test_clean_dataset_reliability_is_full_even_when_pose_is_invalid(tmp_path):
+    """Break caught: temporal validity overwrites clean reliability supervision."""
+    np.save(tmp_path / "empty.npy", np.zeros((64, 17, 3), dtype=np.float32))
+
+    sample = RGPCDataset(
+        [{"clip_id": "empty", "subject_id": "s1", "media_path": "empty.npy", "coarse_event": "adl"}],
+        tmp_path,
+    )[0]
+
+    assert sample.valid_mask.tolist() == [False] * 64
+    assert sample.reliability_target.tolist() == [1.0] * 64
