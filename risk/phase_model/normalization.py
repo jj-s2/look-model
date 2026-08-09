@@ -71,7 +71,7 @@ def normalize_pose_window(window: DualWindow | Sequence[PoseObservation]) -> Nor
     for observation in observations:
         points = observation.keypoints
         mask = observation.visible_mask
-        hip_indices = (0, 1)
+        hip_indices = (11, 12)
         shoulder_indices = (5, 6)
         hip_visible = all(index < len(points) and mask[index] for index in hip_indices)
         shoulder_visible = all(index < len(points) and mask[index] for index in shoulder_indices)

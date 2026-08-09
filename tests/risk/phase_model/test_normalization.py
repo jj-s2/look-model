@@ -54,3 +54,18 @@ def test_pose_array_normalization_is_scale_and_translation_invariant():
     second = first.copy()
     second[:, :, :2] = second[:, :, :2] * 2.0 + (100.0, 50.0)
     assert normalize_pose_array(first) == pytest.approx(normalize_pose_array(second))
+
+
+def test_online_normalization_uses_coco_hip_indices_11_and_12():
+    item = _observation()
+    points = list(item.keypoints)
+    points[0], points[1] = (900.0, 800.0), (1000.0, 800.0)
+    points[11], points[12] = (10.0, 20.0), (12.0, 20.0)
+    corrected = PoseObservation(
+        timestamp=item.timestamp, tracking_id=item.tracking_id,
+        keypoints=tuple(points), scores=item.scores, visible_mask=item.visible_mask,
+        bbox=item.bbox, frame_size=item.frame_size, stream_fresh=item.stream_fresh,
+    )
+    result = normalize_pose_window(DualWindow(short=(corrected,), long=()))
+    assert result.coordinates[0][11][0] == pytest.approx(-0.05)
+    assert result.coordinates[0][12][0] == pytest.approx(0.05)
