@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from .normalization import normalize_pose_array
+from .temporal_features import build_temporal_features
 
 
 _COCO_LEFT_RIGHT_PAIRS = (
@@ -235,11 +236,128 @@ class PhasePoseDataset:
         return candidates[-1]
 
 
+@dataclass(frozen=True)
+class RGPCSample:
+    clip_id: str
+    subject_id: str
+    features: object
+    valid_mask: object
+    fall_target: float
+    phase_target: object
+    phase_mask: object
+    reliability_target: object
+    corruption: str = "clean"
+    corruption_severity: float = 0.0
+
+
+@dataclass(frozen=True)
+class RGPCBatch:
+    features: object
+    valid_mask: object
+    fall_target: object
+    phase_target: object
+    phase_mask: object
+    reliability_target: object
+    clip_ids: tuple[str, ...]
+    subject_ids: tuple[str, ...]
+    corruptions: tuple[str, ...]
+    corruption_severities: object
+
+
+def phase_targets_for_record(record: Mapping[str, object], frames: int):
+    """Create phase targets only for records with trusted frame-level labels."""
+    import numpy as np
+
+    if frames <= 0:
+        raise ValueError("frames must be positive")
+    sequence = record.get("coarse_phase_sequence")
+    mapping = {"normal": 0, "descent_or_impact": 1, "postfall_or_recovery": 2}
+    if sequence is not None:
+        if not isinstance(sequence, Sequence) or isinstance(sequence, (str, bytes)) or len(sequence) != frames:
+            raise ValueError("coarse_phase_sequence must match the frame count")
+        target = np.asarray([mapping.get(str(value), -1) for value in sequence], dtype=np.int64)
+        source = str(record.get("label_source", ""))
+        reviewed = str(record.get("review_status", "")) == "approved"
+        trusted = reviewed and source in {"human", "official", "external_sensor"}
+        mask = (target >= 0) & trusted
+        target[~mask] = -1
+        return target, mask
+    if str(record.get("coarse_event", "")).lower() in {"adl", "normal", "nonfall"}:
+        return np.zeros(frames, dtype=np.int64), np.ones(frames, dtype=bool)
+    return np.full(frames, -1, dtype=np.int64), np.zeros(frames, dtype=bool)
+
+
+def collate_rgpc_samples(samples: Sequence[RGPCSample]) -> RGPCBatch:
+    """Pad variable-length RG-PCNet samples without converting padding to labels."""
+    import numpy as np
+    import torch
+
+    if not samples:
+        raise ValueError("samples must not be empty")
+    batch = len(samples)
+    max_time = max(len(sample.features) for sample in samples)
+    feature_dim = samples[0].features.shape[1]
+    features = np.zeros((batch, max_time, feature_dim), dtype=np.float32)
+    valid = np.zeros((batch, max_time), dtype=bool)
+    phase = np.full((batch, max_time), -1, dtype=np.int64)
+    phase_mask = np.zeros((batch, max_time), dtype=bool)
+    reliability = np.zeros((batch, max_time), dtype=np.float32)
+    for row, sample in enumerate(samples):
+        length = len(sample.features)
+        features[row, :length] = sample.features
+        valid[row, :length] = sample.valid_mask
+        phase[row, :length] = sample.phase_target
+        phase_mask[row, :length] = sample.phase_mask
+        reliability[row, :length] = sample.reliability_target
+    return RGPCBatch(
+        torch.from_numpy(features),
+        torch.from_numpy(valid),
+        torch.tensor([sample.fall_target for sample in samples], dtype=torch.float32),
+        torch.from_numpy(phase),
+        torch.from_numpy(phase_mask),
+        torch.from_numpy(reliability),
+        tuple(sample.clip_id for sample in samples),
+        tuple(sample.subject_id for sample in samples),
+        tuple(sample.corruption for sample in samples),
+        torch.tensor([sample.corruption_severity for sample in samples], dtype=torch.float32),
+    )
+
+
+class RGPCDataset:
+    """Deterministically expose normalized pose caches as RG-PCNet samples."""
+
+    def __init__(self, clips: Sequence[Mapping[str, object]], data_root: Path | str) -> None:
+        self._pose_dataset = PhasePoseDataset(clips, data_root, train=False)
+
+    def __len__(self) -> int:
+        return len(self._pose_dataset)
+
+    def __getitem__(self, index: int) -> RGPCSample:
+        sample = self._pose_dataset[index]
+        temporal = build_temporal_features(sample.long_pose)
+        phase_target, phase_mask = phase_targets_for_record(sample.record, len(temporal.values))
+        return RGPCSample(
+            clip_id=sample.clip_id,
+            subject_id=sample.subject_id,
+            features=temporal.values,
+            valid_mask=temporal.valid_mask,
+            fall_target=float(str(sample.record.get("coarse_event", "")).lower() == "fall"),
+            phase_target=phase_target,
+            phase_mask=phase_mask,
+            reliability_target=temporal.valid_mask.astype("float32"),
+        )
+
+
 __all__ = [
     "AugmentationConfig",
     "PhasePoseDataset",
     "PhaseSample",
+    "RGPCBatch",
+    "RGPCDataset",
+    "RGPCSample",
     "SubjectFold",
     "augment_pose",
+    "collate_rgpc_samples",
+    "phase_targets_for_record",
     "subject_folds",
 ]
