@@ -39,7 +39,7 @@ def transition_consistency_loss(
 ) -> torch.Tensor:
     """Penalize the two impossible adjacent phase transitions."""
     _validate_phase_logits(phase_logits)
-    _validate_frame_mask(valid_mask, phase_logits.shape[:2], "valid_mask")
+    _validate_frame_mask(valid_mask, phase_logits.shape[:2], "valid_mask", phase_logits.device)
     _validate_dt(dt, phase_logits.shape[:2], phase_logits.device)
     if not isinstance(max_dt, (int, float)) or not torch.isfinite(torch.tensor(float(max_dt))) or max_dt < 0:
         raise ValueError("max_dt must be a finite non-negative number")
@@ -71,13 +71,15 @@ def compute_rgpc_loss(
         raise ValueError("coverage_target must be in [0, 1]")
     if corrupted_output is not None:
         _validate_output(corrupted_output, "corrupted_output")
+        if corrupted_output.phase_logits.device != output.phase_logits.device:
+            raise ValueError("corrupted_output tensors must share the output device")
         if corrupted_output.phase_logits.shape != output.phase_logits.shape:
             raise ValueError("corrupted_output phase_logits must match output")
         if corrupted_output.valid_mask.shape != output.valid_mask.shape:
             raise ValueError("corrupted_output valid_mask must match output")
 
     valid = targets.valid_mask
-    fall_known = (targets.fall_target >= 0) & valid.any(dim=1)
+    fall_known = targets.fall_target >= 0
     if torch.any(fall_known):
         pos_weight = _pos_weight(fall_pos_weight, output.window_fall_logit)
         fall = F.binary_cross_entropy_with_logits(
@@ -186,35 +188,48 @@ def _validate_output(output: RGPCNetOutput, name: str) -> None:
         raise TypeError(f"{name} must be an RGPCNetOutput")
     _validate_phase_logits(output.phase_logits)
     batch, time = output.phase_logits.shape[:2]
-    _validate_frame_mask(output.valid_mask, (batch, time), f"{name}.valid_mask")
+    _validate_frame_mask(output.valid_mask, (batch, time), f"{name}.valid_mask", output.phase_logits.device)
+    if not output.valid_mask.any(dim=1).all():
+        raise ValueError(f"{name}.valid_mask requires at least one valid frame per sample")
     for field, shape in (("reliability_logits", (batch, time)), ("fall_logits", (batch, time)), ("window_fall_logit", (batch,))):
         tensor = getattr(output, field)
         if not isinstance(tensor, torch.Tensor) or tensor.shape != shape or not tensor.is_floating_point():
             raise ValueError(f"{name}.{field} has an invalid shape or dtype")
         if tensor.device != output.phase_logits.device:
             raise ValueError(f"{name}.{field} must share the phase_logits device")
+    if (
+        not isinstance(output.window_embedding, torch.Tensor)
+        or output.window_embedding.ndim != 2
+        or output.window_embedding.shape[0] != batch
+        or not output.window_embedding.is_floating_point()
+        or output.window_embedding.device != output.phase_logits.device
+    ):
+        raise ValueError(f"{name}.window_embedding has an invalid shape, dtype, or device")
 
 
 def _validate_targets(targets: RGPCLossTargets, output: RGPCNetOutput) -> None:
     if not isinstance(targets, RGPCLossTargets):
         raise TypeError("targets must be an RGPCLossTargets")
     batch, time = output.phase_logits.shape[:2]
-    _validate_frame_mask(targets.valid_mask, (batch, time), "valid_mask")
+    _validate_frame_mask(targets.valid_mask, (batch, time), "valid_mask", output.phase_logits.device)
     if not torch.equal(targets.valid_mask, output.valid_mask):
         raise ValueError("valid_mask must match output.valid_mask")
     _validate_dt(targets.dt, (batch, time), output.phase_logits.device)
     _validate_tensor(targets.fall_target, (batch,), "fall_target", output.phase_logits.device, floating=True)
     _validate_tensor(targets.phase_target, (batch, time), "phase_target", output.phase_logits.device, integral=True)
-    _validate_frame_mask(targets.phase_mask, (batch, time), "phase_mask")
+    _validate_frame_mask(targets.phase_mask, (batch, time), "phase_mask", output.phase_logits.device)
     _validate_tensor(targets.reliability_target, (batch, time), "reliability_target", output.phase_logits.device, floating=True)
-    if torch.any((targets.fall_target >= 0) & ((targets.fall_target < 0) | (targets.fall_target > 1))):
-        raise ValueError("fall_target labels must be in [0, 1]")
+    if not torch.isfinite(targets.fall_target).all() or not torch.all(
+        (targets.fall_target == -1) | (targets.fall_target == 0) | (targets.fall_target == 1)
+    ):
+        raise ValueError("fall_target must contain only finite {-1, 0, 1} labels")
     phase_valid = targets.phase_mask & targets.valid_mask
     if torch.any((targets.phase_target[phase_valid] < 0) | (targets.phase_target[phase_valid] > 2)):
         raise ValueError("phase_target labels must be in [0, 2] where phase_mask is true")
-    reliability_valid = targets.valid_mask & (targets.reliability_target >= 0)
-    if torch.any(targets.reliability_target[reliability_valid] > 1):
-        raise ValueError("reliability_target labels must be in [0, 1]")
+    if not torch.isfinite(targets.reliability_target).all() or torch.any(
+        (targets.reliability_target < 0) | (targets.reliability_target > 1)
+    ):
+        raise ValueError("reliability_target labels must be finite and in [0, 1]")
 
 
 def _validate_phase_logits(phase_logits: torch.Tensor) -> None:
@@ -222,9 +237,14 @@ def _validate_phase_logits(phase_logits: torch.Tensor) -> None:
         raise ValueError("phase_logits must have shape [B, T, 3] and floating dtype")
 
 
-def _validate_frame_mask(mask: torch.Tensor, shape: tuple[int, int], name: str) -> None:
-    if not isinstance(mask, torch.Tensor) or mask.dtype is not torch.bool or tuple(mask.shape) != shape:
-        raise ValueError(f"{name} must have shape {shape} and dtype torch.bool")
+def _validate_frame_mask(mask: torch.Tensor, shape: tuple[int, int], name: str, device: torch.device | None = None) -> None:
+    if (
+        not isinstance(mask, torch.Tensor)
+        or mask.dtype is not torch.bool
+        or tuple(mask.shape) != shape
+        or (device is not None and mask.device != device)
+    ):
+        raise ValueError(f"{name} must have shape {shape}, dtype torch.bool, and the expected device")
 
 
 def _validate_dt(dt: torch.Tensor, shape: tuple[int, int], device: torch.device) -> None:
@@ -236,8 +256,9 @@ def _validate_dt(dt: torch.Tensor, shape: tuple[int, int], device: torch.device)
 def _validate_tensor(
     tensor: torch.Tensor, shape: tuple[int, ...], name: str, device: torch.device, *, floating: bool = False, integral: bool = False
 ) -> None:
-    valid_dtype = tensor.is_floating_point() if isinstance(tensor, torch.Tensor) and floating else (
-        not tensor.is_floating_point() and tensor.dtype is not torch.bool if isinstance(tensor, torch.Tensor) and integral else isinstance(tensor, torch.Tensor)
+    valid_dtype = (
+        isinstance(tensor, torch.Tensor)
+        and ((floating and tensor.is_floating_point()) or (integral and tensor.dtype is torch.long) or (not floating and not integral))
     )
     if not valid_dtype or tuple(tensor.shape) != shape or tensor.device != device:
         raise ValueError(f"{name} has an invalid shape or dtype")
