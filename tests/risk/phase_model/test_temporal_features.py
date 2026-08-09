@@ -33,29 +33,43 @@ def test_missing_joint_is_explicit_and_does_not_create_velocity_spike():
     assert result.values[1, velocity_offset : velocity_offset + 2].tolist() == [0.0, 0.0]
 
 
-def test_temporal_feature_columns_follow_the_112_value_contract():
-    result = build_temporal_features(_pose(), np.array([0.0, 0.1, 0.35], dtype=np.float32))
+def test_temporal_feature_columns_follow_the_full_112_value_contract():
+    pose = np.array([
+        [
+            (0.0, 0.0, 0.90), (0.0, 0.0, 0.90), (0.0, 0.0, 0.90),
+            (0.0, 0.0, 0.90), (0.0, 0.0, 0.90), (0.0, 0.0, 0.90),
+            (0.0, 0.0, 0.90), (0.0, 0.0, 0.90), (0.0, 0.0, 0.90),
+            (0.0, 0.0, 0.90), (0.0, 0.0, 0.90), (0.0, 0.0, 0.90),
+            (0.0, 0.0, 0.90), (0.0, 0.0, 0.90), (0.0, 0.0, 0.90),
+            (0.0, 0.0, 0.90), (0.0, 0.0, 0.90),
+        ],
+        [
+            (1.0, 2.0, 0.30), (2.0, 4.0, 0.31), (3.0, 6.0, 0.32),
+            (4.0, 8.0, 0.33), (5.0, 10.0, 0.34), (6.0, 12.0, 0.35),
+            (7.0, 14.0, 0.36), (8.0, 16.0, 0.37), (9.0, 18.0, 0.38),
+            (10.0, 20.0, 0.39), (11.0, 22.0, 0.40), (12.0, 24.0, 0.41),
+            (13.0, 26.0, 0.42), (14.0, 28.0, 0.43), (15.0, 30.0, 0.44),
+            (16.0, 32.0, 0.45), (17.0, 34.0, 0.46),
+        ],
+    ], dtype=np.float32)
 
-    # Base columns are [x, y, confidence, missing] per COCO joint.
-    assert result.values[1, 0:4].tolist() == pytest.approx([0.0, 0.0, 1.0, 0.0])
-    assert result.values[1, 20:24].tolist() == pytest.approx([10.0, 0.0, 1.0, 0.0])
-    assert result.values[1, 44:52].tolist() == pytest.approx([
-        10.0, 21.0, 1.0, 0.0, 12.0, 21.0, 1.0, 0.0,
-    ])
-
-    # Velocity columns are [dx/dt, dy/dt] per COCO joint.
-    assert result.values[1, 68:70].tolist() == pytest.approx([0.0, 0.0])
-    assert result.values[1, 90:94].tolist() == pytest.approx([0.0, 10.0, 0.0, 10.0])
-
-    # Global columns 102..111 are dt, root dx, root dy, root speed, torso unit
-    # x/y, visible extent x/y, valid ratio, and mean confidence, respectively.
-    assert result.values[1, 102] == pytest.approx(0.1)
-    assert result.values[1, 103] == pytest.approx(0.0)
-    assert result.values[1, 104] == pytest.approx(10.0)
-    assert result.values[1, 105] == pytest.approx(10.0)
-    assert result.values[1, 106] == pytest.approx(0.0)
-    assert result.values[1, 107] == pytest.approx(-1.0)
-    assert result.values[1, 108] == pytest.approx(12.0)
-    assert result.values[1, 109] == pytest.approx(21.0)
-    assert result.values[1, 110] == pytest.approx(1.0)
-    assert result.values[1, 111] == pytest.approx(1.0)
+    result = build_temporal_features(pose, np.array([0.0, 1.0], dtype=np.float32))
+    expected = [
+        1.0, 2.0, 0.30, 0.0, 2.0, 4.0, 0.31, 0.0,
+        3.0, 6.0, 0.32, 0.0, 4.0, 8.0, 0.33, 0.0,
+        5.0, 10.0, 0.34, 0.0, 6.0, 12.0, 0.35, 0.0,
+        7.0, 14.0, 0.36, 0.0, 8.0, 16.0, 0.37, 0.0,
+        9.0, 18.0, 0.38, 0.0, 10.0, 20.0, 0.39, 0.0,
+        11.0, 22.0, 0.40, 0.0, 12.0, 24.0, 0.41, 0.0,
+        13.0, 26.0, 0.42, 0.0, 14.0, 28.0, 0.43, 0.0,
+        15.0, 30.0, 0.44, 0.0, 16.0, 32.0, 0.45, 0.0,
+        17.0, 34.0, 0.46, 0.0,
+        1.0, 2.0, 2.0, 4.0, 3.0, 6.0, 4.0, 8.0,
+        5.0, 10.0, 6.0, 12.0, 7.0, 14.0, 8.0, 16.0,
+        9.0, 18.0, 10.0, 20.0, 11.0, 22.0, 12.0, 24.0,
+        13.0, 26.0, 14.0, 28.0, 15.0, 30.0, 16.0, 32.0,
+        17.0, 34.0,
+        1.0, 12.5, 25.0, 27.9508497, -0.4472136, -0.8944272,
+        16.0, 32.0, 1.0, 0.38,
+    ]
+    assert result.values[1].tolist() == pytest.approx(expected)
