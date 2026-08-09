@@ -71,20 +71,35 @@ def test_clean_and_corrupted_views_are_clip_aligned_and_epoch_streams_change(tmp
 
 def test_training_passes_a_corrupted_output_to_the_loss(tmp_path, monkeypatch):
     lock, split, config = _write_fixture(tmp_path)
-    captured = []
+    captured, primary_batches = [], []
     real_loss = rg_training.compute_rgpc_loss
+    real_targets = rg_training._targets
+
+    def recording_targets(batch):
+        primary_batches.append(batch)
+        return real_targets(batch)
 
     def recording_loss(*args, **kwargs):
-        captured.append((args[0], args[1], kwargs.get("corrupted_output")))
-        return real_loss(*args, **kwargs)
+        loss = real_loss(*args, **kwargs)
+        captured.append((args[0], args[1], kwargs.get("corrupted_output"), loss.components["consistency"].detach().cpu().item()))
+        return loss
 
+    monkeypatch.setattr(rg_training, "_targets", recording_targets)
     monkeypatch.setattr(rg_training, "compute_rgpc_loss", recording_loss)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
-    assert captured and all(clean is not None for clean, _targets, clean in captured)
-    primary, targets, paired_clean = captured[0]
-    assert torch.equal(primary.valid_mask, targets.valid_mask)
+    assert captured and primary_batches
+    primary, targets, paired_clean, consistency = captured[0]
+    corrupt_batch = primary_batches[0]
+    assert paired_clean is not None
+    assert torch.equal(primary.valid_mask, corrupt_batch.valid_mask)
+    assert torch.equal(targets.fall_target, corrupt_batch.fall_target)
+    assert torch.equal(targets.phase_target, corrupt_batch.phase_target)
+    assert torch.equal(targets.phase_mask, corrupt_batch.phase_mask)
+    assert torch.equal(targets.reliability_target, corrupt_batch.reliability_target)
+    assert torch.equal(targets.valid_mask, corrupt_batch.valid_mask)
+    assert torch.equal(targets.dt, corrupt_batch.dt)
     assert not torch.equal(targets.reliability_target, torch.ones_like(targets.reliability_target))
-    assert rg_training.compute_rgpc_loss(primary, targets, corrupted_output=paired_clean).components["consistency"].item() >= 0.0
+    assert consistency > 1e-8
 
 
 def test_training_rejects_subject_overlap_and_invalid_schema(tmp_path):
@@ -101,6 +116,61 @@ def test_same_seed_cpu_runs_produce_the_same_checkpoint_hash(tmp_path):
     first = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "first", release_id="r1", config_path=config, device="cpu")
     second = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "second", release_id="r1", config_path=config, device="cpu")
     assert first["checkpoint_sha256"] == second["checkpoint_sha256"]
+
+
+def test_existing_output_is_rejected_before_reading_training_inputs(tmp_path):
+    lock, split, config = _write_fixture(tmp_path)
+    output = tmp_path / "release"
+    output.mkdir()
+    sentinel = output / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="already exists"):
+        rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=output, release_id="r1", config_path=config, device="cpu")
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_checkpoint_restores_best_not_last_epoch(tmp_path, monkeypatch):
+    lock, split, config = _write_fixture(tmp_path)
+    config.write_text(config.read_text(encoding="utf-8").replace("EPOCHS=1", "EPOCHS=2").replace("PATIENCE=1", "PATIENCE=4"), encoding="utf-8")
+    scores = iter((0.9, 0.1))
+    last_states = []
+    real_update = rg_training.EarlyStopping.update
+
+    def fixed_score(*_args):
+        return next(scores)
+
+    def recording_update(self, score, *, epoch, model=None):
+        result = real_update(self, score, epoch=epoch, model=model)
+        last_states.append({key: value.detach().clone() for key, value in model.state_dict().items()})
+        return result
+
+    monkeypatch.setattr(rg_training, "_macro_f1", fixed_score)
+    monkeypatch.setattr(rg_training.EarlyStopping, "update", recording_update)
+    metrics = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
+    checkpoint = torch.load(tmp_path / "release" / "checkpoint.pt", weights_only=True)["model_state_dict"]
+    assert metrics["best_epoch"] == 0
+    assert all(torch.equal(checkpoint[key], last_states[0][key]) for key in checkpoint)
+    assert any(not torch.equal(checkpoint[key], last_states[1][key]) for key in checkpoint)
+
+
+def test_training_rejects_a_changed_pose_cache_before_publishing(tmp_path, monkeypatch):
+    lock, split, config = _write_fixture(tmp_path)
+    real_hashes = rg_training._cache_hashes
+    calls = 0
+
+    def changing_hashes(*args):
+        nonlocal calls
+        calls += 1
+        result = real_hashes(*args)
+        if calls > 1:
+            result = dict(result)
+            result[next(iter(result))] = "changed"
+        return result
+
+    monkeypatch.setattr(rg_training, "_cache_hashes", changing_hashes)
+    with pytest.raises(RuntimeError, match="changed during training"):
+        rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
+    assert not (tmp_path / "release").exists()
 
 
 def test_training_rejects_a_clip_with_no_valid_frames_before_optimizing(tmp_path):

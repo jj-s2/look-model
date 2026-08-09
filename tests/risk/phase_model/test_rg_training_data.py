@@ -95,6 +95,36 @@ def test_dataset_rejects_path_escape_with_clip_id(tmp_path):
         dataset[0]
 
 
+@pytest.mark.parametrize("media_path", ("/absolute.npy", "../outside.npy"))
+def test_dataset_rejects_absolute_and_parent_paths(media_path, tmp_path):
+    dataset = RGPCDataset([{"clip_id": "unsafe", "subject_id": "s", "media_path": media_path, "coarse_event": "adl"}], tmp_path)
+    with pytest.raises(ValueError, match="unsafe"):
+        dataset[0]
+
+
+def test_dataset_accepts_dataset_subdirectory(tmp_path):
+    folder = tmp_path / "dataset"
+    folder.mkdir()
+    pose = np.zeros((64, 17, 3), dtype=np.float32)
+    pose[..., 0] = np.arange(17, dtype=np.float32)
+    pose[..., 2] = 1.0
+    np.save(folder / "pose.npy", pose)
+    assert RGPCDataset([{"clip_id": "nested", "subject_id": "s", "dataset": "dataset", "media_path": "pose.npy", "coarse_event": "adl"}], tmp_path)[0].clip_id == "nested"
+
+
+def test_dataset_rejects_symlink_escape_when_supported(tmp_path):
+    outside = tmp_path.parent / "outside-link.npy"
+    np.save(outside, np.zeros((64, 17, 3), dtype=np.float32))
+    link = tmp_path / "link.npy"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this Windows environment")
+    dataset = RGPCDataset([{"clip_id": "link", "subject_id": "s", "media_path": "link.npy", "coarse_event": "adl"}], tmp_path)
+    with pytest.raises(ValueError, match="link"):
+        dataset[0]
+
+
 def test_loader_runs_with_one_spawn_safe_worker(tmp_path):
     pose = np.zeros((64, 17, 3), dtype=np.float32)
     pose[..., 0] = np.arange(17, dtype=np.float32)
