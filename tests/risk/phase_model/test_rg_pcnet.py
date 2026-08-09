@@ -58,6 +58,34 @@ def test_rgpcnet_invalid_suffix_does_not_change_valid_outputs_or_pooling():
     torch.testing.assert_close(clean_output.window_embedding, corrupt_output.window_embedding)
 
 
+def test_rgpcnet_interior_invalid_frame_does_not_influence_later_valid_outputs():
+    """Breaks if a masked interior frame leaks into later valid predictions or pooling."""
+    torch.manual_seed(12)
+    model = RGPCNet(input_dim=112, hidden_dim=16, dropout=0.0).eval()
+    clean = torch.randn(1, 8, 112)
+    corrupt_gap = clean.clone()
+    corrupt_gap[:, 3] = torch.randn(1, 112) * 100
+    mask = torch.tensor([[1, 1, 1, 0, 1, 1, 1, 1]], dtype=torch.bool)
+
+    with torch.no_grad():
+        clean_output = model(clean, mask)
+        corrupt_output = model(corrupt_gap, mask)
+
+    valid_indices = mask[0]
+    torch.testing.assert_close(
+        clean_output.fall_logits[:, valid_indices], corrupt_output.fall_logits[:, valid_indices]
+    )
+    torch.testing.assert_close(
+        clean_output.phase_logits[:, valid_indices], corrupt_output.phase_logits[:, valid_indices]
+    )
+    torch.testing.assert_close(
+        clean_output.reliability_logits[:, valid_indices],
+        corrupt_output.reliability_logits[:, valid_indices],
+    )
+    torch.testing.assert_close(clean_output.window_fall_logit, corrupt_output.window_fall_logit)
+    torch.testing.assert_close(clean_output.window_embedding, corrupt_output.window_embedding)
+
+
 def test_rgpcnet_rejects_an_empty_mask():
     """Breaks if pooling silently accepts a window without valid frames."""
     model = RGPCNet(input_dim=112, hidden_dim=16, dropout=0.0)
@@ -72,3 +100,20 @@ def test_rgpcnet_rejects_mask_shape_mismatch():
 
     with pytest.raises(ValueError, match="valid_mask shape"):
         model(torch.zeros(2, 4, 112), torch.ones(2, 3, dtype=torch.bool))
+
+
+def test_rgpcnet_rejects_a_non_boolean_mask():
+    """Breaks if numeric mask values are accepted as validity flags."""
+    model = RGPCNet(input_dim=112, hidden_dim=16, dropout=0.0)
+
+    with pytest.raises(ValueError, match="dtype torch.bool"):
+        model(torch.zeros(1, 4, 112), torch.ones(1, 4, dtype=torch.int64))
+
+
+def test_rgpcnet_rejects_a_batch_containing_an_empty_mask():
+    """Breaks if one empty sequence can produce invalid pooled batch output."""
+    model = RGPCNet(input_dim=112, hidden_dim=16, dropout=0.0)
+    mixed_mask = torch.tensor([[1, 1, 1, 1], [0, 0, 0, 0]], dtype=torch.bool)
+
+    with pytest.raises(ValueError, match="at least one valid frame"):
+        model(torch.zeros(2, 4, 112), mixed_mask)

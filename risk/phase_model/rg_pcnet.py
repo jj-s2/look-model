@@ -59,9 +59,10 @@ class RGPCNet(nn.Module):
     def forward(self, features: torch.Tensor, valid_mask: torch.Tensor) -> RGPCNetOutput:
         self._validate_inputs(features, valid_mask)
 
-        encoded = self.input_projection(features).transpose(1, 2)
+        frame_mask = valid_mask.unsqueeze(-1).to(features.dtype)
+        encoded = (self.input_projection(features) * frame_mask).transpose(1, 2)
         for block in self.blocks:
-            encoded = block(encoded)
+            encoded = block(encoded) * valid_mask.unsqueeze(1).to(encoded.dtype)
         frame_embeddings = encoded.transpose(1, 2)
 
         fall_logits = self.fall_head(frame_embeddings).squeeze(-1)
