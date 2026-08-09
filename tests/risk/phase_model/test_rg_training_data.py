@@ -1,7 +1,10 @@
+import pickle
+
 import numpy as np
 import pytest
 
 from risk.phase_model.training_data import RGPCDataset, RGPCSample, collate_rgpc_samples, phase_targets_for_record
+from risk.phase_model.rg_training import make_loader
 
 
 def test_unlabeled_fall_clip_has_no_primary_phase_supervision():
@@ -20,15 +23,16 @@ def test_adl_clip_is_supervised_as_normal_only():
 
 def test_collate_pads_time_and_preserves_valid_masks():
     """Break caught: padding overwrites temporal validity or phase-supervision masks."""
-    a = RGPCSample("a", "s1", np.ones((2, 112), np.float32), np.array([True, True]), 0.0,
+    a = RGPCSample("a", "s1", np.ones((2, 112), np.float32), np.array([True, True]), np.array([0.0, 2.0], np.float32), 0.0,
                    np.array([0, 0]), np.array([True, True]), np.ones(2, np.float32))
-    b = RGPCSample("b", "s2", np.ones((3, 112), np.float32), np.array([True, True, True]), 1.0,
+    b = RGPCSample("b", "s2", np.ones((3, 112), np.float32), np.array([True, True, True]), np.array([0.0, 0.1, 3.0], np.float32), 1.0,
                    np.array([-1, -1, -1]), np.array([False, False, False]), np.ones(3, np.float32))
     batch = collate_rgpc_samples([a, b])
     assert batch.features.shape == (2, 3, 112)
     assert batch.valid_mask.tolist() == [[True, True, False], [True, True, True]]
     assert batch.phase_mask.tolist() == [[True, True, False], [False, False, False]]
     assert batch.subject_ids == ("s1", "s2")
+    np.testing.assert_allclose(batch.dt.numpy(), [[0.0, 2.0, 0.0], [0.0, 0.1, 3.0]])
 
 
 def test_reviewed_human_phase_sequence_maps_known_labels_and_masks_unknowns():
@@ -69,3 +73,33 @@ def test_dataset_builds_112_feature_fall_sample_without_phase_labels(tmp_path):
     assert sample.phase_target.tolist() == [-1] * 64
     assert sample.phase_mask.tolist() == [False] * 64
     assert sample.valid_mask.tolist() == [True] * 64
+
+
+def test_time_jitter_dt_survives_dataset_and_collation(tmp_path):
+    pose = np.zeros((64, 17, 3), dtype=np.float32)
+    pose[..., 0] = np.arange(17, dtype=np.float32)
+    pose[..., 2] = 1.0
+    np.save(tmp_path / "pose.npy", pose)
+    dataset = RGPCDataset([{"clip_id": "clip", "subject_id": "s", "media_path": "pose.npy", "coarse_event": "adl"}], tmp_path, corruption_probability=1.0, corruption_severity=1.0, corruption="time_jitter", seed=3)
+    sample = dataset[0]
+    batch = collate_rgpc_samples([sample])
+    np.testing.assert_allclose(batch.dt.numpy(), sample.dt[None, :])
+    assert np.any(sample.dt[1:] > 1.0)
+
+
+def test_dataset_rejects_path_escape_with_clip_id(tmp_path):
+    outside = tmp_path.parent / "outside.npy"
+    np.save(outside, np.zeros((64, 17, 3), dtype=np.float32))
+    dataset = RGPCDataset([{"clip_id": "escape", "subject_id": "s", "media_path": "../outside.npy", "coarse_event": "adl"}], tmp_path)
+    with pytest.raises(ValueError, match="escape"):
+        dataset[0]
+
+
+def test_loader_runs_with_one_spawn_safe_worker(tmp_path):
+    pose = np.zeros((64, 17, 3), dtype=np.float32)
+    pose[..., 0] = np.arange(17, dtype=np.float32)
+    pose[..., 2] = 1.0
+    np.save(tmp_path / "worker.npy", pose)
+    dataset = RGPCDataset([{"clip_id": "worker", "subject_id": "s", "media_path": "worker.npy", "coarse_event": "adl"}], tmp_path)
+    batch = next(iter(make_loader(dataset, batch_size=1, shuffle=False, seed=4, workers=1)))
+    assert batch.clip_ids == ("worker",)

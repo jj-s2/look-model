@@ -45,6 +45,11 @@ def test_training_writes_a_non_promoted_best_checkpoint_and_provenance(tmp_path)
     manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["git_commit"]
     assert manifest["input_manifest_hashes"]
+    assert manifest["config_source_sha256"]
+    assert list(manifest["cache_hashes"]) == sorted(manifest["cache_hashes"])
+    checkpoint = torch.load(output / "checkpoint.pt", weights_only=True)
+    assert checkpoint["best_epoch"] == metrics["best_epoch"]
+    assert rg_training._sha256(output / "checkpoint.pt") == metrics["checkpoint_sha256"]
     assert (output / "dataset_lock.json").read_bytes() == lock.read_bytes()
     assert (output / "split_manifest.json").read_bytes() == split.read_bytes()
 
@@ -70,12 +75,32 @@ def test_training_passes_a_corrupted_output_to_the_loss(tmp_path, monkeypatch):
     real_loss = rg_training.compute_rgpc_loss
 
     def recording_loss(*args, **kwargs):
-        captured.append(kwargs.get("corrupted_output"))
+        captured.append((args[0], args[1], kwargs.get("corrupted_output")))
         return real_loss(*args, **kwargs)
 
     monkeypatch.setattr(rg_training, "compute_rgpc_loss", recording_loss)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
-    assert captured and all(output is not None for output in captured)
+    assert captured and all(clean is not None for clean, _targets, clean in captured)
+    primary, targets, paired_clean = captured[0]
+    assert torch.equal(primary.valid_mask, targets.valid_mask)
+    assert not torch.equal(targets.reliability_target, torch.ones_like(targets.reliability_target))
+    assert rg_training.compute_rgpc_loss(primary, targets, corrupted_output=paired_clean).components["consistency"].item() >= 0.0
+
+
+def test_training_rejects_subject_overlap_and_invalid_schema(tmp_path):
+    lock, split, config = _write_fixture(tmp_path)
+    payload = json.loads(split.read_text(encoding="utf-8"))
+    payload["partitions"]["validation"] = ["s1-adl"]
+    split.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="overlap"):
+        rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
+
+
+def test_same_seed_cpu_runs_produce_the_same_checkpoint_hash(tmp_path):
+    lock, split, config = _write_fixture(tmp_path)
+    first = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "first", release_id="r1", config_path=config, device="cpu")
+    second = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "second", release_id="r1", config_path=config, device="cpu")
+    assert first["checkpoint_sha256"] == second["checkpoint_sha256"]
 
 
 def test_training_rejects_a_clip_with_no_valid_frames_before_optimizing(tmp_path):

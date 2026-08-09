@@ -169,7 +169,7 @@ class PhasePoseDataset:
         seed: int = 42,
     ) -> None:
         self._clips = tuple(dict(clip) for clip in clips)
-        self._root = Path(data_root)
+        self._root = Path(data_root).resolve()
         self._train = train
         self._augmentation = augmentation or AugmentationConfig()
         self._seed = int(seed)
@@ -227,14 +227,22 @@ class PhasePoseDataset:
 
     def _resolve_feature_path(self, clip: Mapping[str, object]) -> Path:
         media_path = Path(str(clip["media_path"]))
+        clip_id = str(clip.get("clip_id", "<unknown>"))
+        if media_path.is_absolute() or ".." in media_path.parts:
+            raise ValueError(f"clip_id {clip_id} has unsafe media_path: {media_path}")
         candidates = [self._root / media_path]
         dataset = str(clip.get("dataset") or "")
         if dataset:
+            if Path(dataset).is_absolute() or ".." in Path(dataset).parts:
+                raise ValueError(f"clip_id {clip_id} has unsafe dataset path: {dataset}")
             candidates.append(self._root / dataset / media_path)
         for candidate in candidates:
-            if candidate.exists():
-                return candidate
-        return candidates[-1]
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(self._root):
+                raise ValueError(f"clip_id {clip_id} path escapes data root: {candidate}")
+            if resolved.exists():
+                return resolved
+        return candidates[-1].resolve()
 
 
 @dataclass(frozen=True)
@@ -243,6 +251,7 @@ class RGPCSample:
     subject_id: str
     features: object
     valid_mask: object
+    dt: object
     fall_target: float
     phase_target: object
     phase_mask: object
@@ -255,6 +264,7 @@ class RGPCSample:
 class RGPCBatch:
     features: object
     valid_mask: object
+    dt: object
     fall_target: object
     phase_target: object
     phase_mask: object
@@ -300,6 +310,7 @@ def collate_rgpc_samples(samples: Sequence[RGPCSample]) -> RGPCBatch:
     feature_dim = samples[0].features.shape[1]
     features = np.zeros((batch, max_time, feature_dim), dtype=np.float32)
     valid = np.zeros((batch, max_time), dtype=bool)
+    dt = np.zeros((batch, max_time), dtype=np.float32)
     phase = np.full((batch, max_time), -1, dtype=np.int64)
     phase_mask = np.zeros((batch, max_time), dtype=bool)
     reliability = np.zeros((batch, max_time), dtype=np.float32)
@@ -307,12 +318,14 @@ def collate_rgpc_samples(samples: Sequence[RGPCSample]) -> RGPCBatch:
         length = len(sample.features)
         features[row, :length] = sample.features
         valid[row, :length] = sample.valid_mask
+        dt[row, :length] = sample.dt
         phase[row, :length] = sample.phase_target
         phase_mask[row, :length] = sample.phase_mask
         reliability[row, :length] = sample.reliability_target
     return RGPCBatch(
         torch.from_numpy(features),
         torch.from_numpy(valid),
+        torch.from_numpy(dt),
         torch.tensor([sample.fall_target for sample in samples], dtype=torch.float32),
         torch.from_numpy(phase),
         torch.from_numpy(phase_mask),
@@ -378,6 +391,7 @@ class RGPCDataset:
             subject_id=sample.subject_id,
             features=temporal.values,
             valid_mask=temporal.valid_mask,
+            dt=temporal.dt,
             fall_target=float(str(sample.record.get("coarse_event", "")).lower() == "fall"),
             phase_target=phase_target,
             phase_mask=phase_mask,

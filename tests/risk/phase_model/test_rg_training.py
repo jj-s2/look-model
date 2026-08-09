@@ -1,11 +1,12 @@
 import random
+import pickle
 
 import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
 
-from risk.phase_model.rg_training import EarlyStopping, seed_everything
+from risk.phase_model.rg_training import EarlyStopping, _worker_init, seed_everything
 
 
 def test_seed_everything_repeats_python_numpy_and_torch_values():
@@ -35,3 +36,7 @@ def test_early_stopping_restores_a_deep_copy_of_the_best_epoch_state():
     assert state.best_epoch == 1
     state.restore(model)
     assert model.weight.item() == pytest.approx(2.0)
+
+
+def test_worker_initializer_is_pickleable_for_windows_spawn():
+    assert callable(pickle.loads(pickle.dumps(_worker_init)))
