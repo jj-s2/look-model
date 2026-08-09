@@ -1,6 +1,7 @@
 import random
 import pickle
 import json
+import re
 
 import numpy as np
 import pytest
@@ -77,4 +78,20 @@ def test_provenance_schema_rejects_each_invalid_contract_independently(mutate, m
     lock, split = _provenance()
     mutate(lock, split)
     with pytest.raises(ValueError, match=message):
+        _load_provenance(json.dumps(lock).encode(), json.dumps(split).encode(), "r")
+
+
+@pytest.mark.parametrize(
+    ("lock", "split", "expected"),
+    [
+        ([], _provenance()[1], "dataset lock schema_version must be '1.0'"),
+        (_provenance()[0], [], "split manifest schema_version must be '1.0'"),
+        ({**_provenance()[0], "schema_version": "2.0"}, _provenance()[1], "dataset lock schema_version must be '1.0'"),
+        (_provenance()[0], {**_provenance()[1], "schema_version": "2.0"}, "split manifest schema_version must be '1.0'"),
+        ({**_provenance()[0], "clips": None}, _provenance()[1], "dataset lock clips must be a list"),
+        (_provenance()[0], {**_provenance()[1], "partitions": None}, "split manifest partitions must be a mapping"),
+    ],
+)
+def test_provenance_top_level_errors_have_exact_messages(lock, split, expected):
+    with pytest.raises(ValueError, match="^" + re.escape(expected) + "$"):
         _load_provenance(json.dumps(lock).encode(), json.dumps(split).encode(), "r")

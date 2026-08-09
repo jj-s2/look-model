@@ -1,4 +1,5 @@
 import json
+import hashlib
 
 import numpy as np
 import pytest
@@ -49,9 +50,40 @@ def test_training_writes_a_non_promoted_best_checkpoint_and_provenance(tmp_path)
     assert list(manifest["cache_hashes"]) == sorted(manifest["cache_hashes"])
     checkpoint = torch.load(output / "checkpoint.pt", weights_only=True)
     assert checkpoint["best_epoch"] == metrics["best_epoch"]
-    assert rg_training._sha256(output / "checkpoint.pt") == metrics["checkpoint_sha256"]
+    assert hashlib.sha256((output / "checkpoint.pt").read_bytes()).hexdigest() == metrics["checkpoint_sha256"]
     assert (output / "dataset_lock.json").read_bytes() == lock.read_bytes()
     assert (output / "split_manifest.json").read_bytes() == split.read_bytes()
+
+
+def test_provenance_uses_initial_bytes_when_sources_change_during_forward(tmp_path, monkeypatch):
+    lock, split, config = _write_fixture(tmp_path)
+    original = {"lock": lock.read_bytes(), "split": split.read_bytes(), "config": config.read_bytes()}
+    expected_config = {"SEED": 7, "INPUT_DIM": 112, "HIDDEN_DIM": 8, "DROPOUT": 0.0, "BATCH_SIZE": 2, "EPOCHS": 1, "PATIENCE": 1, "LEARNING_RATE": 0.001, "WEIGHT_DECAY": 0.0001, "GRAD_CLIP_NORM": 1.0, "NUM_WORKERS": 0, "CORRUPTION_PROBABILITY": 1.0}
+    real_forward, changed = rg_training.RGPCNet.forward, False
+
+    def mutate_sources(self, *args, **kwargs):
+        nonlocal changed
+        if not changed:
+            changed = True
+            lock.write_bytes(b'{"changed":true}')
+            split.write_bytes(b'{"changed":true}')
+            config.write_bytes(b'SEED=999\n')
+        return real_forward(self, *args, **kwargs)
+
+    monkeypatch.setattr(rg_training.RGPCNet, "forward", mutate_sources)
+    output = tmp_path / "release"
+    metrics = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=output, release_id="r1", config_path=config, device="cpu")
+    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
+    assert (output / "dataset_lock.json").read_bytes() == original["lock"]
+    assert (output / "split_manifest.json").read_bytes() == original["split"]
+    assert manifest["input_manifest_hashes"] == {"dataset_lock": hashlib.sha256(original["lock"]).hexdigest(), "split_manifest": hashlib.sha256(original["split"]).hexdigest()}
+    assert manifest["config_source_sha256"] == hashlib.sha256(original["config"]).hexdigest()
+    assert manifest["resolved_config"] == expected_config
+    checkpoint = torch.load(output / "checkpoint.pt", weights_only=True)
+    assert checkpoint["resolved_config"] == expected_config == manifest["resolved_config"]
+    assert metrics["checkpoint_sha256"] == hashlib.sha256((output / "checkpoint.pt").read_bytes()).hexdigest()
+    clips = json.loads(original["lock"])["clips"]
+    assert manifest["cache_hashes"] == {clip["clip_id"]: hashlib.sha256((tmp_path / clip["media_path"]).read_bytes()).hexdigest() for clip in sorted(clips, key=lambda item: item["clip_id"])}
 
 
 def test_clean_and_corrupted_views_are_clip_aligned_and_epoch_streams_change(tmp_path):
@@ -74,6 +106,13 @@ def test_training_passes_a_corrupted_output_to_the_loss(tmp_path, monkeypatch):
     captured, primary_batches = [], []
     real_loss = rg_training.compute_rgpc_loss
     real_targets = rg_training._targets
+    real_forward = rg_training.RGPCNet.forward
+    forward_outputs = []
+
+    def recording_forward(self, *args, **kwargs):
+        output = real_forward(self, *args, **kwargs)
+        forward_outputs.append(output)
+        return output
 
     def recording_targets(batch):
         primary_batches.append(batch)
@@ -85,11 +124,14 @@ def test_training_passes_a_corrupted_output_to_the_loss(tmp_path, monkeypatch):
         return loss
 
     monkeypatch.setattr(rg_training, "_targets", recording_targets)
+    monkeypatch.setattr(rg_training.RGPCNet, "forward", recording_forward)
     monkeypatch.setattr(rg_training, "compute_rgpc_loss", recording_loss)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
     assert captured and primary_batches
     primary, targets, paired_clean, consistency = captured[0]
     corrupt_batch = primary_batches[0]
+    assert primary is forward_outputs[1]
+    assert paired_clean is forward_outputs[0]
     assert paired_clean is not None
     assert torch.equal(primary.valid_mask, corrupt_batch.valid_mask)
     assert torch.equal(targets.fall_target, corrupt_batch.fall_target)
@@ -129,6 +171,26 @@ def test_existing_output_is_rejected_before_reading_training_inputs(tmp_path):
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
+@pytest.mark.parametrize("failure_target", ("save", "replace"))
+def test_publish_failures_remove_the_staging_directory(tmp_path, monkeypatch, failure_target):
+    lock, split, config = _write_fixture(tmp_path)
+    output = tmp_path / "release"
+    if failure_target == "save":
+        def fail_save(*_args, **_kwargs):
+            raise OSError("save failed")
+        monkeypatch.setattr(torch, "save", fail_save)
+        expected = "save failed"
+    else:
+        def fail_replace(*_args, **_kwargs):
+            raise OSError("rename failed")
+        monkeypatch.setattr(rg_training.os, "replace", fail_replace)
+        expected = "rename failed"
+    with pytest.raises(OSError, match=expected):
+        rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=output, release_id="r1", config_path=config, device="cpu")
+    assert not output.exists()
+    assert list(tmp_path.glob(".release-*")) == []
+
+
 def test_checkpoint_restores_best_not_last_epoch(tmp_path, monkeypatch):
     lock, split, config = _write_fixture(tmp_path)
     config.write_text(config.read_text(encoding="utf-8").replace("EPOCHS=1", "EPOCHS=2").replace("PATIENCE=1", "PATIENCE=4"), encoding="utf-8")
@@ -153,21 +215,19 @@ def test_checkpoint_restores_best_not_last_epoch(tmp_path, monkeypatch):
     assert any(not torch.equal(checkpoint[key], last_states[1][key]) for key in checkpoint)
 
 
-def test_training_rejects_a_changed_pose_cache_before_publishing(tmp_path, monkeypatch):
+def test_training_rejects_an_actual_changed_pose_cache_before_publishing(tmp_path, monkeypatch):
     lock, split, config = _write_fixture(tmp_path)
-    real_hashes = rg_training._cache_hashes
-    calls = 0
+    real_forward, changed = rg_training.RGPCNet.forward, False
 
-    def changing_hashes(*args):
-        nonlocal calls
-        calls += 1
-        result = real_hashes(*args)
-        if calls > 1:
-            result = dict(result)
-            result[next(iter(result))] = "changed"
-        return result
+    def mutate_cache(self, *args, **kwargs):
+        nonlocal changed
+        if not changed:
+            changed = True
+            with (tmp_path / "s3-fall.npz").open("ab") as handle:
+                handle.write(b"audit-change")
+        return real_forward(self, *args, **kwargs)
 
-    monkeypatch.setattr(rg_training, "_cache_hashes", changing_hashes)
+    monkeypatch.setattr(rg_training.RGPCNet, "forward", mutate_cache)
     with pytest.raises(RuntimeError, match="changed during training"):
         rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu")
     assert not (tmp_path / "release").exists()

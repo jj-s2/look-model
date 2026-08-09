@@ -1,10 +1,23 @@
 import pickle
+import os
 
 import numpy as np
 import pytest
 
 from risk.phase_model.training_data import RGPCDataset, RGPCSample, collate_rgpc_samples, phase_targets_for_record
 from risk.phase_model.rg_training import make_loader
+
+
+class _WorkerIdentityDataset:
+    def __len__(self):
+        return 1
+
+    def __getitem__(self, _index):
+        from torch.utils.data import get_worker_info
+        worker = get_worker_info()
+        assert worker is not None
+        identity = f"{os.getpid()}:{worker.id}"
+        return RGPCSample(identity, identity, np.zeros((1, 112), np.float32), np.array([True]), np.array([0.0], np.float32), 0.0, np.array([0]), np.array([True]), np.ones(1, np.float32))
 
 
 def test_unlabeled_fall_clip_has_no_primary_phase_supervision():
@@ -133,3 +146,10 @@ def test_loader_runs_with_one_spawn_safe_worker(tmp_path):
     dataset = RGPCDataset([{"clip_id": "worker", "subject_id": "s", "media_path": "worker.npy", "coarse_event": "adl"}], tmp_path)
     batch = next(iter(make_loader(dataset, batch_size=1, shuffle=False, seed=4, workers=1)))
     assert batch.clip_ids == ("worker",)
+
+
+def test_loader_uses_a_real_child_worker_not_the_parent_process():
+    batch = next(iter(make_loader(_WorkerIdentityDataset(), batch_size=1, shuffle=False, seed=4, workers=1)))
+    worker_pid, worker_id = batch.clip_ids[0].split(":")
+    assert int(worker_pid) != os.getpid()
+    assert worker_id == "0"
