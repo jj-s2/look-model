@@ -85,6 +85,15 @@ def test_empty_matches_have_numeric_rates_and_unavailable_delays():
     assert result.p90_delay_seconds == "unavailable"
 
 
+def test_subnormal_positive_duration_keeps_rates_numeric():
+    result = evaluate_continuous_events(
+        [], [Alert("a", 1.0)], duration_seconds=5e-324, tolerance_seconds=0.0
+    )
+
+    assert isinstance(result.false_alerts_per_hour, float)
+    assert math.isfinite(result.false_alerts_per_hour)
+
+
 def test_continuous_metrics_is_frozen_and_to_dict_has_exact_schema():
     result = evaluate_continuous_events([], [], duration_seconds=1.0, tolerance_seconds=0.0)
     assert dataclasses.is_dataclass(result)

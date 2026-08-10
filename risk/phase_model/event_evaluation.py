@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import math
 from numbers import Real
+import sys
 from typing import Any
 
 
@@ -102,6 +103,20 @@ def _percentile(values: list[float], quantile: float) -> float | str:
     return ordered[lower] + fraction * (ordered[upper] - ordered[lower])
 
 
+def _false_alert_rate_per_hour(false_alert_count: int, duration_seconds: float) -> float:
+    """Compute a stable finite rate even for positive subnormal durations."""
+
+    if false_alert_count == 0:
+        return 0.0
+    rate = false_alert_count * 3600.0 / duration_seconds
+    if math.isfinite(rate):
+        return rate
+    # The mathematical value can exceed binary64 for a valid positive finite
+    # duration.  Keep the JSON/reporting contract numeric and finite by
+    # saturating at the largest representable float.
+    return sys.float_info.max
+
+
 def evaluate_continuous_events(
     truth_events: list[TruthEvent],
     alerts: list[Alert],
@@ -180,7 +195,9 @@ def evaluate_continuous_events(
         # Every non-unique alert consumes operator attention.  Consequently
         # duplicates contribute to the false-alarm burden even though they are
         # reported separately from alerts outside all truth intervals.
-        false_alerts_per_hour=(false_count + duplicate_count) / monitoring_hours,
+        false_alerts_per_hour=_false_alert_rate_per_hour(
+            false_count + duplicate_count, duration
+        ),
         duplicate_alert_rate=(duplicate_count / duplicate_denominator)
         if duplicate_denominator
         else 0.0,
