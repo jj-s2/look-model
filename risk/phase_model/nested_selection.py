@@ -131,6 +131,91 @@ def _trapezoidal_area(points: Sequence[tuple[float, float]]) -> float:
     )
 
 
+def _nearest_integer(value: float, lower: int, upper: int) -> int | None:
+    candidate = round(value)
+    if (
+        candidate < lower
+        or candidate > upper
+        or abs(value - candidate) > _FEASIBILITY_EPSILON
+    ):
+        return None
+    return candidate
+
+
+def _curve_counts(
+    points: Sequence[tuple[float, float]], selected_coverage: float
+) -> tuple[int, int]:
+    sample_count = len(points) - 1
+    cumulative_errors = []
+    for prefix_size, (coverage, risk) in enumerate(points):
+        if abs(coverage - prefix_size / sample_count) > _FEASIBILITY_EPSILON:
+            raise ValueError("risk curve coverage must use every prefix lattice point")
+        error_count = _nearest_integer(risk * prefix_size, 0, prefix_size)
+        if error_count is None:
+            raise ValueError("prefix risk must represent an integer error count")
+        if cumulative_errors and error_count - cumulative_errors[-1] not in (0, 1):
+            raise ValueError("cumulative prefix errors must increment by zero or one")
+        cumulative_errors.append(error_count)
+
+    selected_count = round(selected_coverage * sample_count)
+    if (
+        not 0 <= selected_count <= sample_count
+        or abs(selected_coverage - selected_count / sample_count)
+        > _FEASIBILITY_EPSILON
+    ):
+        raise ValueError("selected coverage must lie on the prefix lattice")
+    return selected_count, cumulative_errors[selected_count]
+
+
+def _confusion_metrics_realizable(
+    *,
+    selected_count: int,
+    selected_errors: int,
+    recall: float,
+    f1: float,
+    fpr: float,
+) -> bool:
+    for positive_count in range(selected_count + 1):
+        negative_count = selected_count - positive_count
+        if positive_count == 0:
+            if abs(recall) > _FEASIBILITY_EPSILON:
+                continue
+            true_positive = 0
+        else:
+            true_positive = round(recall * positive_count)
+            if (
+                not 0 <= true_positive <= positive_count
+                or abs(true_positive / positive_count - recall)
+                > _FEASIBILITY_EPSILON
+            ):
+                continue
+
+        if negative_count == 0:
+            if abs(fpr - 1.0) > _FEASIBILITY_EPSILON:
+                continue
+            false_positive = 0
+        else:
+            false_positive = round(fpr * negative_count)
+            if (
+                not 0 <= false_positive <= negative_count
+                or abs(false_positive / negative_count - fpr)
+                > _FEASIBILITY_EPSILON
+            ):
+                continue
+
+        false_negative = positive_count - true_positive
+        f1_denominator = 2 * true_positive + false_positive + false_negative
+        expected_f1 = (
+            2 * true_positive / f1_denominator if f1_denominator else 0.0
+        )
+        if abs(expected_f1 - f1) > _FEASIBILITY_EPSILON:
+            continue
+        if false_positive + false_negative != selected_errors:
+            continue
+        return True
+    return False
+
+
 def _constraints_satisfied(
     recall: float,
     fpr: float,
@@ -370,6 +455,17 @@ def _validate_feasible_result(result: SelectiveThreshold) -> None:
         raise ValueError("risk curve coverage must be strictly increasing")
     if abs(_trapezoidal_area(points) - result.aurc) > _FEASIBILITY_EPSILON:
         raise ValueError("aurc must equal the trapezoidal risk-coverage area")
+    selected_count, selected_errors = _curve_counts(points, result.coverage)
+    if not _confusion_metrics_realizable(
+        selected_count=selected_count,
+        selected_errors=selected_errors,
+        recall=result.recall,
+        f1=result.f1,
+        fpr=result.fpr,
+    ):
+        raise ValueError(
+            "selected metrics are not realizable by the risk-curve evidence"
+        )
 
 
 def _validate_infeasible_result(result: SelectiveThreshold) -> None:

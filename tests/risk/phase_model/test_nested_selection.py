@@ -482,6 +482,24 @@ def _valid_result():
     )
 
 
+def _loose_result():
+    return select_oof_thresholds(
+        _brief_records(),
+        recall_floor=0.0,
+        fpr_ceiling=1.0,
+        coverage_floor=0.0,
+    )
+
+
+def _hand_aurc(points):
+    return sum(
+        (right_coverage - left_coverage) * (left_risk + right_risk) / 2.0
+        for (left_coverage, left_risk), (right_coverage, right_risk) in zip(
+            points, points[1:]
+        )
+    )
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -598,6 +616,162 @@ def test_infeasible_result_rejects_nonconservative_sentinels(mutation):
 
     with pytest.raises(ValueError):
         replace(result, **mutation)
+
+
+@pytest.mark.parametrize(
+    ("points", "changes"),
+    [
+        (
+            ((0.0, 0.0), (0.3, 0.2), (1.0, 0.2)),
+            {"coverage": 1.0, "recall": 1.0, "f1": 1.0, "fpr": 0.0},
+        ),
+        (
+            ((0.0, 0.0), (0.4, 0.0), (1.0, 0.0)),
+            {"coverage": 1.0, "recall": 1.0, "f1": 1.0, "fpr": 0.0},
+        ),
+        (
+            ((0.0, 0.0), (0.5, 0.2), (1.0, 0.5)),
+            {"coverage": 1.0, "recall": 0.5, "f1": 2.0 / 3.0, "fpr": 1.0},
+        ),
+        (
+            ((0.0, 0.0), (1.0 / 3.0, 0.0), (2.0 / 3.0, 1.0), (1.0, 2.0 / 3.0)),
+            {"coverage": 1.0, "recall": 0.0, "f1": 0.0, "fpr": 0.0},
+        ),
+    ],
+)
+def test_feasible_constructor_rejects_unrealizable_prefix_curves(points, changes):
+    result = _loose_result()
+    with pytest.raises(ValueError):
+        replace(result, risk_coverage_points=points, aurc=_hand_aurc(points), **changes)
+
+
+def test_feasible_constructor_rejects_selected_coverage_off_prefix_lattice():
+    result = _loose_result()
+    points = ((0.0, 0.0), (0.5, 0.0), (1.0, 0.0))
+
+    with pytest.raises(ValueError):
+        replace(
+            result,
+            risk_coverage_points=points,
+            aurc=0.0,
+            coverage=0.75,
+            recall=1.0,
+            f1=1.0,
+            fpr=0.0,
+        )
+
+
+def test_feasible_constructor_rejects_positive_recall_with_zero_f1():
+    result = _loose_result()
+    points = ((0.0, 0.0), (0.5, 0.0), (1.0, 0.0))
+
+    with pytest.raises(ValueError):
+        replace(
+            result,
+            risk_coverage_points=points,
+            aurc=0.0,
+            coverage=1.0,
+            recall=1.0,
+            f1=0.0,
+            fpr=0.0,
+        )
+
+
+def test_feasible_constructor_rejects_impossible_confusion_metrics():
+    result = _loose_result()
+    points = ((0.0, 0.0), (0.5, 0.0), (1.0, 0.5))
+
+    with pytest.raises(ValueError):
+        replace(
+            result,
+            risk_coverage_points=points,
+            aurc=0.125,
+            coverage=1.0,
+            recall=0.5,
+            f1=0.5,
+            fpr=1.0,
+            subject_macro_f1=0.5,
+            worst_subject_f1=0.5,
+        )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {
+            "coverage": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "fpr": 1.0,
+            "subject_macro_f1": 0.0,
+            "worst_subject_f1": 0.0,
+        },
+        {
+            "coverage": 0.5,
+            "recall": 0.0,
+            "f1": 0.0,
+            "fpr": 0.0,
+            "subject_macro_f1": 0.0,
+            "worst_subject_f1": 0.0,
+        },
+        {
+            "coverage": 0.5,
+            "recall": 1.0,
+            "f1": 1.0,
+            "fpr": 1.0,
+            "subject_macro_f1": 0.5,
+            "worst_subject_f1": 0.0,
+        },
+    ],
+)
+def test_feasible_constructor_accepts_zero_denominator_edge_cases(changes):
+    result = _loose_result()
+    points = ((0.0, 0.0), (0.5, 0.0), (1.0, 0.5))
+
+    artifact = replace(
+        result,
+        risk_coverage_points=points,
+        aurc=0.125,
+        fall_threshold=0.5,
+        reliability_threshold=0.5,
+        **changes,
+    )
+
+    assert artifact.feasible is True
+
+
+def test_normal_selector_matches_independent_oracle_with_reliability_ties(monkeypatch):
+    _install_identity_calibration(monkeypatch)
+    records = [
+        OOFRecord("s1", 1, _logit(0.9), 0.8),
+        OOFRecord("s1", 0, _logit(0.1), 0.8),
+        OOFRecord("s2", 1, _logit(0.9), 0.4),
+        OOFRecord("s2", 0, _logit(0.9), 0.4),
+    ]
+
+    result = select_oof_thresholds(
+        records,
+        recall_floor=1.0,
+        fpr_ceiling=0.0,
+        coverage_floor=0.5,
+    )
+
+    assert result.fall_threshold == 0.2
+    assert result.reliability_threshold == 0.45
+    assert (result.coverage, result.recall, result.f1, result.fpr) == (
+        0.5,
+        1.0,
+        1.0,
+        0.0,
+    )
+    assert result.risk_coverage_points == (
+        (0.0, 0.0),
+        (0.25, 0.0),
+        (0.5, 0.0),
+        (0.75, 1.0 / 3.0),
+        (1.0, 0.25),
+    )
+    assert result.aurc == pytest.approx(11.0 / 96.0)
 
 
 def test_selection_is_repeatable_and_independent_of_input_order():
