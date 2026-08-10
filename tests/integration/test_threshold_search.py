@@ -126,3 +126,17 @@ def test_choose_threshold_rejects_invalid_probability_bounds(kwargs, parameter):
             ["s1", "s2"],
             **kwargs,
         )
+
+
+@pytest.mark.parametrize(
+    "step",
+    ["invalid", float("nan"), float("inf"), float("-inf"), 0.0, -0.01],
+)
+def test_choose_threshold_rejects_invalid_step_with_stable_error(step):
+    with pytest.raises(ValueError, match="step"):
+        _choose_threshold(
+            [0.9, 0.1],
+            [1, 0],
+            ["s1", "s2"],
+            step=step,
+        )

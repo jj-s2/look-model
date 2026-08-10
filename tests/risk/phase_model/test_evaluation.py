@@ -1,4 +1,9 @@
-from risk.phase_model.evaluation import evaluate_predictions, should_promote_phase_model
+import warnings
+
+import numpy as np
+import pytest
+
+from risk.phase_model.evaluation import evaluate_fall_event, evaluate_predictions, should_promote_phase_model
 
 
 def test_evaluation_reports_phase_fall_prefall_and_abstention_metrics():
@@ -27,3 +32,32 @@ def test_promotion_requires_recall_and_real_data():
     )
     assert decision.promoted
     assert not should_promote_phase_model({"auprc": .9, "recall": .99, "fpr_at_recall": .1, "demo": True}, {"auprc": .1, "recall": .1, "fpr_at_recall": .9}).promoted
+
+
+def test_evaluate_fall_event_accepts_numpy_arrays():
+    result = evaluate_fall_event(
+        np.array([1, 0], dtype=np.int64),
+        np.array([0.9, 0.1], dtype=np.float64),
+        np.array(["s1", "s1"], dtype=object),
+        0.5,
+    )
+
+    assert result["inner_mean_f1"] == 1.0
+    assert result["ece"] == pytest.approx(0.1)
+    assert result["brier"] == pytest.approx(0.01)
+
+
+def test_evaluate_fall_event_preserves_empty_numpy_array_metrics_without_truth_testing():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = evaluate_fall_event(
+            np.array([], dtype=np.int64),
+            np.array([], dtype=np.float64),
+            np.array([], dtype=object),
+            0.5,
+        )
+
+    assert result["inner_mean_f1"] == 0.0
+    assert result["ece"] == 0.0
+    assert result["brier"] == 0.0
+    assert result["per_subject"] == {}

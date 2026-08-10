@@ -76,7 +76,7 @@ def _fpr_at_recall(labels: list[int], scores: list[float], target: float = .9) -
 
 def _expected_calibration_error(labels: list[int], scores: list[float], bins: int = 10) -> float:
     """Compute expected calibration error with equal-width bins."""
-    if not labels:
+    if len(labels) == 0:
         return 0.0
     edges = [index / bins for index in range(bins + 1)]
     total_error = 0.0
@@ -94,7 +94,7 @@ def _expected_calibration_error(labels: list[int], scores: list[float], bins: in
 
 def _brier_score(labels: list[int], scores: list[float]) -> float:
     """Compute mean squared error between probabilities and binary labels."""
-    if not labels:
+    if len(labels) == 0:
         return 0.0
     return sum((float(score) - float(label)) ** 2 for score, label in zip(scores, labels)) / len(labels)
 

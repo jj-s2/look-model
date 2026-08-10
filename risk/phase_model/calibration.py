@@ -53,7 +53,7 @@ class TemperatureCalibrator:
     def fit(self, logits: Sequence[float], labels: Sequence[int], *, partition: str = "validation", split_hash: str | None = None) -> CalibrationResult:
         if partition != "validation":
             raise ValueError("temperature calibration must use the validation partition")
-        if len(logits) != len(labels) or not logits:
+        if len(logits) != len(labels) or len(logits) == 0:
             raise ValueError("logits and labels must be non-empty and have equal length")
         normalized_labels = [int(value) for value in labels]
         normalized_logits = [float(value) for value in logits]
