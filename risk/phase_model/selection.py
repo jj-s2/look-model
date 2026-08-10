@@ -39,7 +39,7 @@ class ThresholdSelection:
 
 
 def _validated_binary_inputs(labels: Sequence[int], scores: Sequence[float]) -> tuple[list[int], list[float]]:
-    if len(labels) != len(scores) or not labels:
+    if len(labels) != len(scores) or len(labels) == 0:
         raise ValueError("labels and scores must be non-empty and have equal length")
     normalized_labels = [int(value) for value in labels]
     if any(value not in (0, 1) for value in normalized_labels):

@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from scripts.optimize_phase_threshold import inner_threshold_search
+from risk.phase_model.selection import metrics_at_threshold
+from scripts.optimize_phase_threshold import _choose_threshold, inner_threshold_search
 
 
 def _synthetic_logits(
@@ -63,3 +64,65 @@ def test_inner_search_rejects_single_fold():
 def test_inner_search_rejects_empty_inputs():
     with pytest.raises(ValueError, match="empty"):
         inner_threshold_search([], [], [])
+
+
+def test_selection_accepts_numpy_sequences_without_truth_value_errors():
+    metrics = metrics_at_threshold(
+        np.array([1, 0], dtype=np.int64),
+        np.array([0.9, 0.1], dtype=np.float64),
+        0.5,
+    )
+
+    assert metrics.true_positive == 1
+    assert metrics.true_negative == 1
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "parameter"),
+    [
+        ({"recall_floor": float("nan")}, "recall_floor"),
+        ({"recall_floor": float("inf")}, "recall_floor"),
+        ({"recall_floor": -0.01}, "recall_floor"),
+        ({"recall_floor": 1.01}, "recall_floor"),
+        ({"recall_floor": "invalid"}, "recall_floor"),
+        ({"min_recall_per_subject": float("nan")}, "min_recall_per_subject"),
+        ({"min_recall_per_subject": float("-inf")}, "min_recall_per_subject"),
+        ({"min_recall_per_subject": -0.01}, "min_recall_per_subject"),
+        ({"min_recall_per_subject": 1.01}, "min_recall_per_subject"),
+        ({"fpr_ceiling": float("nan")}, "fpr_ceiling"),
+        ({"fpr_ceiling": float("inf")}, "fpr_ceiling"),
+        ({"fpr_ceiling": -0.01}, "fpr_ceiling"),
+        ({"fpr_ceiling": 1.01}, "fpr_ceiling"),
+    ],
+)
+def test_inner_search_rejects_invalid_probability_constraints(kwargs, parameter):
+    with pytest.raises(ValueError, match=parameter):
+        inner_threshold_search(
+            [2.0, -2.0, 1.0, -1.0],
+            [1, 0, 1, 0],
+            ["s1", "s1", "s2", "s2"],
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "parameter"),
+    [
+        ({"lower": float("nan")}, "lower"),
+        ({"lower": float("-inf")}, "lower"),
+        ({"lower": -0.01}, "lower"),
+        ({"lower": 1.01}, "lower"),
+        ({"upper": float("nan")}, "upper"),
+        ({"upper": float("inf")}, "upper"),
+        ({"upper": -0.01}, "upper"),
+        ({"upper": 1.01}, "upper"),
+    ],
+)
+def test_choose_threshold_rejects_invalid_probability_bounds(kwargs, parameter):
+    with pytest.raises(ValueError, match=parameter):
+        _choose_threshold(
+            [0.9, 0.1],
+            [1, 0],
+            ["s1", "s2"],
+            **kwargs,
+        )

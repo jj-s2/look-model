@@ -74,6 +74,31 @@ def _fpr_at_recall(labels: list[int], scores: list[float], target: float = .9) -
     return min(candidates) if candidates else "unavailable"
 
 
+def _expected_calibration_error(labels: list[int], scores: list[float], bins: int = 10) -> float:
+    """Compute expected calibration error with equal-width bins."""
+    if not labels:
+        return 0.0
+    edges = [index / bins for index in range(bins + 1)]
+    total_error = 0.0
+    for lower, upper in zip(edges[:-1], edges[1:]):
+        mask = [lower <= score < upper or (upper == 1.0 and score == 1.0) for score in scores]
+        bin_labels = [label for label, include in zip(labels, mask) if include]
+        bin_scores = [score for score, include in zip(scores, mask) if include]
+        if not bin_labels:
+            continue
+        mean_predicted = sum(bin_scores) / len(bin_scores)
+        fraction_positive = sum(bin_labels) / len(bin_labels)
+        total_error += len(bin_labels) * abs(mean_predicted - fraction_positive)
+    return total_error / len(labels)
+
+
+def _brier_score(labels: list[int], scores: list[float]) -> float:
+    """Compute mean squared error between probabilities and binary labels."""
+    if not labels:
+        return 0.0
+    return sum((float(score) - float(label)) ** 2 for score, label in zip(scores, labels)) / len(labels)
+
+
 def _evaluate_group(records: list[Mapping[str, object]], threshold: float) -> dict[str, object]:
     phase_labels = [str(record.get("phase_true", "unknown")) for record in records]
     phase_predictions = [str(record.get("phase_pred", "unknown")) for record in records]
@@ -119,6 +144,45 @@ def evaluate_predictions(records: Iterable[Mapping[str, object]], threshold: flo
         per_subject={key: _evaluate_group(value, threshold) for key, value in sorted(subjects.items())},
         per_dataset={key: _evaluate_group(value, threshold) for key, value in sorted(datasets.items())},
     )
+
+
+def evaluate_fall_event(
+    labels: list[int],
+    probabilities: list[float],
+    subjects: list[str],
+    threshold: float,
+) -> dict[str, object]:
+    """Return fall-event metrics needed by the F1 promotion gate."""
+    predictions = [1 if probability >= threshold else 0 for probability in probabilities]
+    overall = _binary_metrics(labels, predictions)
+
+    per_subject: dict[str, dict[str, object]] = {}
+    subject_ids = sorted(set(subjects))
+    for subject in subject_ids:
+        mask = [index for index, subject_id in enumerate(subjects) if subject_id == subject]
+        subject_labels = [labels[index] for index in mask]
+        subject_probs = [probabilities[index] for index in mask]
+        subject_preds = [predictions[index] for index in mask]
+        metrics = _binary_metrics(subject_labels, subject_preds)
+        per_subject[subject] = {
+            **metrics,
+            "samples": len(mask),
+            "ece": _expected_calibration_error(subject_labels, subject_probs),
+            "brier": _brier_score(subject_labels, subject_probs),
+        }
+
+    subject_recalls = [float(per_subject[subject]["recall"]) for subject in subject_ids]
+    subject_f1s = [float(per_subject[subject]["f1"]) for subject in subject_ids]
+    return {
+        "inner_mean_f1": overall["f1"],
+        "inner_mean_recall": overall["recall"],
+        "inner_mean_precision": overall["precision"],
+        "worst_subject_recall": min(subject_recalls) if subject_recalls else 0.0,
+        "subject_macro_f1": sum(subject_f1s) / len(subject_f1s) if subject_f1s else 0.0,
+        "ece": _expected_calibration_error(labels, probabilities),
+        "brier": _brier_score(labels, probabilities),
+        "per_subject": per_subject,
+    }
 
 
 def should_promote_phase_model(candidate: Mapping[str, object], baseline: Mapping[str, object]) -> PromotionDecision:

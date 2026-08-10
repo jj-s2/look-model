@@ -2,6 +2,9 @@ import numpy as np
 import pytest
 
 from configs.skeleton import padtsf_v1_f1 as config
+from risk.phase_model.calibration import Calibrator
+from risk.phase_model.evaluation import evaluate_fall_event
+from risk.phase_model.release import build_release_bundle, write_release_bundle
 from scripts.run_phase_f1_experiment import evaluate_and_promote
 
 
@@ -117,6 +120,62 @@ def test_evaluate_and_promote_can_reject_poor_candidate():
     )
 
     assert experiment["promoted"] is False
+    assert experiment["reason"] == "no threshold satisfies recall_floor"
+    assert experiment["candidate"] is None
+
+
+def test_evaluate_and_promote_reports_feasible_promotion_gate_rejection():
+    (
+        val_logits,
+        val_labels,
+        val_subjects,
+        test_logits,
+        test_labels,
+        test_subjects,
+    ) = _synthetic_experiment_data()
+    baseline = {
+        "inner_mean_f1": 1.0,
+        "inner_mean_recall": 1.0,
+        "worst_subject_recall": 1.0,
+        "confirmation_f1": 1.0,
+        "confirmation_recall": 1.0,
+        "ece": 0.0,
+        "brier": 0.0,
+    }
+
+    result = evaluate_and_promote(
+        validation_logits=val_logits,
+        validation_labels=val_labels,
+        validation_subjects=val_subjects,
+        test_logits=test_logits,
+        test_labels=test_labels,
+        test_subjects=test_subjects,
+        baseline=baseline,
+        config=config,
+    )
+
+    assert result["promoted"] is False
+    assert result["reason"] == "promotion gate rejected candidate"
+    assert result["threshold"] is not None
+    assert result["candidate"] is not None
+
+
+class _InvalidRecallConfig:
+    INNER_RECALL_FLOOR = float("nan")
+
+
+def test_evaluate_and_promote_does_not_swallow_invalid_constraints_as_infeasible():
+    with pytest.raises(ValueError, match="recall_floor"):
+        evaluate_and_promote(
+            validation_logits=[2.0, -2.0, 1.0, -1.0],
+            validation_labels=[1, 0, 1, 0],
+            validation_subjects=["s1", "s1", "s2", "s2"],
+            test_logits=[1.0, -1.0],
+            test_labels=[1, 0],
+            test_subjects=["s3", "s3"],
+            baseline={"inner_mean_f1": 0.5, "brier": 0.25},
+            config=_InvalidRecallConfig,
+        )
 
 
 def test_evaluate_and_promote_rejects_single_class_confirmation_without_crashing():
@@ -157,3 +216,29 @@ def test_evaluate_and_promote_rejects_mismatched_confirmation_lengths():
             baseline={"inner_mean_f1": 0.5, "brier": 0.25},
             config=config,
         )
+
+
+def test_f1_support_dependency_closure_round_trips_release(tmp_path):
+    calibrator = Calibrator(temperature=1.0, threshold=0.5)
+    probabilities = calibrator.calibrate([2.0, -2.0])
+    metrics = evaluate_fall_event([1, 0], probabilities, ["s1", "s1"], 0.5)
+    checkpoint = tmp_path / "candidate.pt"
+    checkpoint.write_bytes(b"checkpoint")
+    bundle = build_release_bundle(
+        "r1",
+        checkpoint,
+        tmp_path,
+        inputs={
+            "dataset_lock": {"clips": []},
+            "split_manifest": {"partitions": {}},
+            "metrics": {"promoted": False, "inner_mean_f1": metrics["inner_mean_f1"]},
+            "calibration": {"temperature": 1.0, "threshold": 0.5},
+        },
+    )
+
+    release_dir = tmp_path / "release"
+    write_release_bundle(bundle, release_dir)
+
+    assert (release_dir / "checkpoint.pt").read_bytes() == b"checkpoint"
+    assert (release_dir / "calibration.json").exists()
+    assert bundle.release_id == "r1"

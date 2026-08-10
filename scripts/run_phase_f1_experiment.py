@@ -102,8 +102,9 @@ def evaluate_and_promote(
             validation_labels,
             validation_subjects,
             n_folds=int(getattr(config, "INNER_FOLDS", 3)),
-            recall_floor=float(getattr(config, "INNER_RECALL_FLOOR", 0.75)),
-            min_recall_per_subject=float(getattr(config, "INNER_MIN_RECALL_PER_SUBJECT", 0.60)),
+            recall_floor=getattr(config, "INNER_RECALL_FLOOR", 0.75),
+            min_recall_per_subject=getattr(config, "INNER_MIN_RECALL_PER_SUBJECT", 0.60),
+            fpr_ceiling=getattr(config, "INNER_FPR_CEILING", None),
             aggregation=str(getattr(config, "INNER_THRESHOLD_AGGREGATION", "mean")),
             seed=seed,
         )
@@ -150,6 +151,7 @@ def evaluate_and_promote(
 
     return {
         "promoted": promoted,
+        "reason": None if promoted else "promotion gate rejected candidate",
         "temperature": temperature,
         "threshold": threshold,
         "inner_metrics": inner_metrics,

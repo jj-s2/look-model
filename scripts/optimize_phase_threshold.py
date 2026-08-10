@@ -65,6 +65,30 @@ def _subject_stratified_folds(
     return folds
 
 
+def _validate_probability_constraint(name: str, value: object) -> float:
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be finite and in [0, 1]") from None
+    if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
+        raise ValueError(f"{name} must be finite and in [0, 1]")
+    return normalized
+
+
+def _validate_search_constraints(
+    recall_floor: object,
+    min_recall_per_subject: object,
+    fpr_ceiling: object | None,
+) -> tuple[float, float, float | None]:
+    return (
+        _validate_probability_constraint("recall_floor", recall_floor),
+        _validate_probability_constraint("min_recall_per_subject", min_recall_per_subject),
+        None
+        if fpr_ceiling is None
+        else _validate_probability_constraint("fpr_ceiling", fpr_ceiling),
+    )
+
+
 def _choose_threshold(
     scores: Sequence[float],
     labels: Sequence[int],
@@ -78,7 +102,15 @@ def _choose_threshold(
     step: float = 0.01,
 ) -> float:
     """Select a threshold subject-aware, preserving recall floor."""
-    lower, upper, step = float(lower), float(upper), float(step)
+    recall_floor, min_recall_per_subject, fpr_ceiling = _validate_search_constraints(
+        recall_floor, min_recall_per_subject, fpr_ceiling
+    )
+    lower = _validate_probability_constraint("lower", lower)
+    upper = _validate_probability_constraint("upper", upper)
+    try:
+        step = float(step)
+    except (TypeError, ValueError):
+        raise ValueError("step must be positive and finite") from None
     if lower > upper:
         raise ValueError("lower must not exceed upper")
     if not math.isfinite(step) or step <= 0.0:
@@ -140,6 +172,9 @@ def _build_records(
     """
     if len(logits) == 0 or len(logits) != len(labels) or len(logits) != len(subjects):
         raise ValueError("logits, labels, and subjects must be non-empty and have the same length")
+    recall_floor, min_recall_per_subject, fpr_ceiling = _validate_search_constraints(
+        recall_floor, min_recall_per_subject, fpr_ceiling
+    )
     if aggregation not in {"mean", "median"}:
         raise ValueError(f"unsupported aggregation: {aggregation}")
 
@@ -325,6 +360,9 @@ def inner_threshold_search(
     """Run the inner threshold-search loop and return a serializable result."""
     if len(logits) == 0 or len(logits) != len(labels) or len(logits) != len(subjects):
         raise ValueError("logits, labels, and subjects must be non-empty and have the same length")
+    recall_floor, min_recall_per_subject, fpr_ceiling = _validate_search_constraints(
+        recall_floor, min_recall_per_subject, fpr_ceiling
+    )
     return _build_records(
         logits,
         labels,
