@@ -74,3 +74,11 @@ only its own files.
   per-clip values, two primary loss targets, and no validation clip injection.
 - The snapshot race spans two epochs and observes the teacher clip at least
   twice, always retaining the initial logit and provenance hashes.
+
+## Review fix round 3
+
+- Injection and primary-target spies now make indexed, exact per-clip assertions
+  after asserting expected record counts; validation IDs cannot be injected.
+- The race mutation now happens after the first real forward result and records
+  all two-epoch injection and primary-target batches, each pinned to the
+  initial teacher mapping.

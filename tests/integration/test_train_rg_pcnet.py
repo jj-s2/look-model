@@ -220,17 +220,26 @@ def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_pat
     monkeypatch.setattr(rg_training, "compute_rgpc_loss", capture)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
     manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
-    for clip_ids, (mask, logits, distill) in zip(target_batches, seen):
+    assert len(injected) == 4
+    assert len(target_batches) == 2
+    assert len(seen) == 2
+    for clip_ids, logits, mask in injected:
+        assert len(clip_ids) == len(logits) == len(mask)
+        assert not any(clip_id.startswith("s3-") for clip_id in clip_ids)
+        for index in range(len(clip_ids)):
+            expected = clip_ids[index] == "s1-adl"
+            assert mask[index] is expected
+            assert logits[index] == (4.0 if expected else 0.0)
+    for index in range(len(target_batches)):
+        clip_ids = target_batches[index]
+        mask, logits, distill = seen[index]
         assert len(mask) == len(logits)
-        for clip_id, actual_mask, actual_logit in zip(clip_ids, mask, logits):
-            expected = clip_id == "s1-adl"
-            assert actual_mask is expected
-            assert actual_logit == (4.0 if expected else 0.0)
+        for item_index in range(len(clip_ids)):
+            expected = clip_ids[item_index] == "s1-adl"
+            assert mask[item_index] is expected
+            assert logits[item_index] == (4.0 if expected else 0.0)
         if any(mask):
             assert distill > 0.0
-    assert len(injected) == 4
-    assert len(target_batches) == len(seen) == 2
-    assert all(not any(clip_id.startswith("s3-") for clip_id in ids) for ids, _, _ in injected)
     assert manifest["teacher_manifest_sha256"] == hashlib.sha256(teacher_bytes).hexdigest()
     assert manifest["teacher_checkpoint_sha256"] == "b" * 64
 
@@ -256,21 +265,36 @@ def test_training_uses_teacher_snapshot_when_manifest_changes_during_forward(tmp
     teacher = tmp_path / "teacher.jsonl"
     initial = (json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 4.0, "checkpoint_sha256": "b" * 64}) + "\n").encode()
     teacher.write_bytes(initial)
-    seen, changed = [], False
-    real_forward, real_targets = rg_training.RGPCNet.forward, rg_training._targets
+    seen, injected, changed = [], [], False
+    real_forward, real_targets, real_inject = rg_training.RGPCNet.forward, rg_training._targets, rg_training._inject_teacher
     def mutate(self, *args, **kwargs):
         nonlocal changed
+        result = real_forward(self, *args, **kwargs)
         if not changed:
             changed = True
             teacher.write_text(json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": -9.0, "checkpoint_sha256": "c" * 64}) + "\n", encoding="utf-8")
-        return real_forward(self, *args, **kwargs)
+        return result
     def capture(batch):
         seen.append((batch.clip_ids, batch.teacher_fall_logit.tolist(), batch.teacher_mask.tolist()))
         return real_targets(batch)
+    def capture_inject(batch, loaded_teacher):
+        result = real_inject(batch, loaded_teacher)
+        injected.append((result.clip_ids, result.teacher_fall_logit.tolist(), result.teacher_mask.tolist()))
+        return result
     monkeypatch.setattr(rg_training.RGPCNet, "forward", mutate)
     monkeypatch.setattr(rg_training, "_targets", capture)
+    monkeypatch.setattr(rg_training, "_inject_teacher", capture_inject)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
     manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
+    assert len(injected) == 8
+    assert len(seen) == 4
+    for records in (injected, seen):
+        for ids, logits, mask in records:
+            assert len(ids) == len(logits) == len(mask)
+            for index in range(len(ids)):
+                expected = ids[index] == "s1-adl"
+                assert mask[index] is expected
+                assert logits[index] == (4.0 if expected else 0.0)
     observations = [logits[ids.index("s1-adl")] for ids, logits, _ in seen if "s1-adl" in ids]
     assert len(observations) >= 2
     assert observations == [4.0] * len(observations)
