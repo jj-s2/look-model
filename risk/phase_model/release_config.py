@@ -31,11 +31,16 @@ _FIELD_NAMES = (
 _HEX_CHARACTERS = frozenset("0123456789abcdef")
 
 
-def _finite_float(value: object, name: str) -> float:
+def _number(value: object, name: str) -> Real | Decimal:
     if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
         raise ValueError(f"{name} must be a finite number")
+    return value
+
+
+def _finite_float(value: object, name: str) -> float:
+    numeric = _number(value, name)
     try:
-        normalized = float(value)
+        normalized = float(numeric)
     except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"{name} must be a finite number") from exc
     if not math.isfinite(normalized):
@@ -44,17 +49,28 @@ def _finite_float(value: object, name: str) -> float:
 
 
 def _closed_range(value: object, name: str, low: float, high: float) -> float:
-    normalized = _finite_float(value, name)
-    if not low <= normalized <= high:
+    numeric = _number(value, name)
+    try:
+        in_range = low <= numeric <= high
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        raise ValueError(f"{name} must be a finite number") from exc
+    if not in_range:
         raise ValueError(f"{name} must be in [{low}, {high}]")
-    return normalized
+    return _finite_float(numeric, name)
 
 
 def _seconds(value: object, name: str, *, strictly_positive: bool) -> float:
-    normalized = _finite_float(value, name)
-    if normalized < 0.0 or (strictly_positive and normalized == 0.0):
+    numeric = _number(value, name)
+    try:
+        invalid = numeric <= 0.0 if strictly_positive else numeric < 0.0
+    except (TypeError, ValueError, ArithmeticError) as exc:
+        raise ValueError(f"{name} must be a finite number") from exc
+    if invalid:
         qualifier = "positive" if strictly_positive else "non-negative"
         raise ValueError(f"{name} must be {qualifier}")
+    normalized = _finite_float(numeric, name)
+    if strictly_positive and normalized == 0.0:
+        raise ValueError(f"{name} must be positive after float normalization")
     return normalized
 
 
@@ -91,7 +107,10 @@ class RGPCReleaseConfig:
         if type(self.release_id) is not str or not self.release_id.strip():
             raise ValueError("release_id must be a non-empty string")
 
-        object.__setattr__(self, "release_id", self.release_id.strip())
+        release_id = self.release_id.strip()
+        if any(0xD800 <= ord(character) <= 0xDFFF for character in release_id):
+            raise ValueError("release_id must not contain isolated Unicode surrogates")
+        object.__setattr__(self, "release_id", release_id)
         for name in ("model_sha256", "dataset_sha256", "split_sha256"):
             object.__setattr__(self, name, _sha256(getattr(self, name), name))
         object.__setattr__(
@@ -174,6 +193,7 @@ def load_release_config(path: os.PathLike[str] | str) -> RGPCReleaseConfig:
             document,
             object_pairs_hook=_object_without_duplicates,
             parse_constant=_reject_constant,
+            parse_float=Decimal,
         )
     except (json.JSONDecodeError, _InvalidJSONConstant) as exc:
         raise ValueError("invalid release config JSON") from exc
@@ -206,7 +226,9 @@ def write_release_config(
     target = _target_path(path)
     encoded = (
         json.dumps(
-            config.to_dict(),
+            # Dispatch through the base implementation so a subclass cannot
+            # bypass the validated, versioned contract with an override.
+            RGPCReleaseConfig.to_dict(config),
             ensure_ascii=False,
             sort_keys=True,
             indent=2,

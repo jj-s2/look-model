@@ -80,6 +80,22 @@ def test_release_id_is_canonicalized_by_stripping_outer_whitespace() -> None:
     assert config.to_dict()["release_id"] == "发布 r1"
 
 
+@pytest.mark.parametrize("release_id", ["prefix\ud800suffix", "\udfff"])
+def test_release_id_rejects_isolated_unicode_surrogates(release_id: str) -> None:
+    with pytest.raises(ValueError, match="release_id"):
+        _config(release_id=release_id)
+
+
+def test_load_rejects_escaped_isolated_unicode_surrogate(tmp_path: Path) -> None:
+    payload = _config().to_dict()
+    payload["release_id"] = "bad\ud800"
+    path = tmp_path / "release_config.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="release_id"):
+        load_release_config(path)
+
+
 @pytest.mark.parametrize("release_id", ["", " ", "\t\r\n", 1, None, True])
 def test_release_id_rejects_empty_or_non_string_values(release_id: object) -> None:
     with pytest.raises(ValueError, match="release_id"):
@@ -226,6 +242,87 @@ def test_real_decimal_and_numpy_values_normalize_to_json_safe_builtin_floats() -
     assert json.dumps(config.to_dict(), allow_nan=False)
 
 
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        (
+            "temperature",
+            Decimal("0.4999999999999999999999999999999999999999"),
+        ),
+        ("temperature", Fraction(5 * 2**200 + 1, 2**200)),
+        ("fall_threshold", Decimal("-1e-10000")),
+        ("reliability_threshold", Fraction(-1, 10**10000)),
+        (
+            "minimum_coverage",
+            Decimal("1.0000000000000000000000000000000000000001"),
+        ),
+        ("recovery_seconds", Decimal("-1e-10000")),
+        ("cooldown_seconds", Fraction(-1, 10**10000)),
+        ("confirm_seconds", Decimal("1e-10000")),
+        ("confirm_seconds", Fraction(1, 10**10000)),
+    ],
+)
+def test_exact_numeric_domain_is_checked_before_builtin_float_conversion(
+    field_name: str, invalid_value: object
+) -> None:
+    with pytest.raises(ValueError, match=field_name):
+        _config(**{field_name: invalid_value})
+
+
+def test_decimal_and_fraction_exact_endpoints_remain_valid() -> None:
+    config = _config(
+        temperature=Decimal("0.5"),
+        fall_threshold=Fraction(0, 1),
+        reliability_threshold=Decimal("1"),
+        minimum_coverage=Fraction(1, 1),
+        recovery_seconds=Decimal("0"),
+        cooldown_seconds=Fraction(0, 1),
+    )
+
+    assert config.temperature == 0.5
+    assert config.fall_threshold == 0.0
+    assert config.reliability_threshold == 1.0
+    assert config.minimum_coverage == 1.0
+    assert config.recovery_seconds == 0.0
+    assert config.cooldown_seconds == 0.0
+    for field_name in FIELD_NAMES[5:]:
+        assert type(getattr(config, field_name)) is float
+
+
+@pytest.mark.parametrize(
+    ("field_name", "original", "exact_invalid_literal"),
+    [
+        (
+            "temperature",
+            "1.5",
+            "0.4999999999999999999999999999999999999999",
+        ),
+        (
+            "minimum_coverage",
+            "0.6",
+            "1.0000000000000000000000000000000000000001",
+        ),
+        ("recovery_seconds", "2.0", "-1e-10000"),
+    ],
+)
+def test_load_preserves_json_decimal_precision_until_validation(
+    tmp_path: Path,
+    field_name: str,
+    original: str,
+    exact_invalid_literal: str,
+) -> None:
+    document = json.dumps(_config().to_dict(), sort_keys=True)
+    document = document.replace(
+        f'"{field_name}": {original}',
+        f'"{field_name}": {exact_invalid_literal}',
+    )
+    path = tmp_path / "release_config.json"
+    path.write_text(document, encoding="utf-8")
+
+    with pytest.raises(ValueError, match=field_name):
+        load_release_config(path)
+
+
 def test_write_is_canonical_utf8_and_creates_missing_parent_directories(
     tmp_path: Path,
 ) -> None:
@@ -289,6 +386,19 @@ def test_write_rejects_non_config_values_without_touching_target(tmp_path: Path)
         write_release_config({"release_id": "r1"}, path)  # type: ignore[arg-type]
 
     assert path.read_bytes() == b"old\n"
+
+
+def test_write_uses_base_contract_serializer_for_subclasses(tmp_path: Path) -> None:
+    class MaliciousReleaseConfig(RGPCReleaseConfig):
+        def to_dict(self) -> dict[str, str | float]:
+            return {"schema_version": "evil"}
+
+    path = tmp_path / "release_config.json"
+    config = MaliciousReleaseConfig(**_config().to_dict())
+
+    write_release_config(config, path)
+
+    assert load_release_config(path) == _config()
 
 
 @pytest.mark.parametrize("missing_field", FIELD_NAMES)
