@@ -48,3 +48,17 @@ their targeted tests pass. No model weights or output artifacts are staged.
 
 The shared worktree contains unrelated uncommitted changes. This task stages
 only its own files.
+
+## Review fix round 1
+
+- `TeacherLogits.__post_init__` now defensively copies, validates and sorts any
+  public-constructor mapping before wrapping it in `MappingProxyType`.
+- A present split `outer_fold` is now strict: only an absent key permits
+  single-validation-subject derivation.
+- A snapshot-race integration test mutates the JSONL during the first forward
+  and proves the initial logits and both initial hashes remain in use.
+- True pre/post parity was measured in Python 3.12 / CPU using the Task 6 tiny
+  fixture. Baseline worktree `05e11a0d187efca28bcd7f394cc42772bc50976b` and
+  current omission/explicit-None all produced checkpoint SHA
+  `cc61283411aca3cbb45592468ee1572bcb977c073287bc53b1a5c9814ce860ec` and
+  sorted-state digest `c0c06807edd754c8bf097d0c8fec30a866852907994c3b92fca0a6c27cd21ae7`.

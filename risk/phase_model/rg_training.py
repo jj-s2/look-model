@@ -232,8 +232,10 @@ def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path,
         raise ValueError(f"train and validation subjects overlap: {sorted(overlap)}")
     teacher = None
     if teacher_bytes is not None:
-        candidate_fold = split.get("outer_fold")
-        if isinstance(candidate_fold, str) and candidate_fold.strip():
+        if "outer_fold" in split:
+            candidate_fold = split["outer_fold"]
+            if not isinstance(candidate_fold, str) or not candidate_fold.strip():
+                raise ValueError("split outer_fold must be a non-empty string")
             outer_fold = candidate_fold
         elif len(validation_subjects) == 1:
             outer_fold = next(iter(validation_subjects))

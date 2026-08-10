@@ -5,7 +5,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from risk.phase_model.teacher_distillation import load_teacher_logits, masked_binary_distillation
+from risk.phase_model.teacher_distillation import TeacherLogits, load_teacher_logits, masked_binary_distillation
 
 
 def _record(clip_id="train-a", outer_fold="s4", fall_logit=2.0, checkpoint="a" * 64):
@@ -35,6 +35,33 @@ def test_manifest_orders_immutable_records_and_snapshots_hash(tmp_path):
     assert teacher.manifest_sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
     with pytest.raises(TypeError):
         teacher["a"] = 0.0
+
+
+def test_public_teacher_logits_constructor_defensively_copies_and_sorts_values():
+    """Break caught: a caller can mutate a frozen teacher lookup through its original dict."""
+    source = {"z": -1.0, "a": 2.0}
+    teacher = TeacherLogits(source, "A" * 64, "B" * 64)
+    source["a"] = 99.0
+    source["new"] = 5.0
+    assert tuple(teacher) == ("a", "z")
+    assert teacher["a"] == 2.0
+    assert teacher.checkpoint_sha256 == "a" * 64
+    assert teacher.manifest_sha256 == "b" * 64
+
+
+@pytest.mark.parametrize("bad", (True, float("nan"), "2.0"))
+def test_manifest_rejects_boolean_or_wrong_type_logit(tmp_path, bad):
+    """Break caught: JSON booleans or non-numeric logits become teacher targets."""
+    with pytest.raises(ValueError, match="finite number"):
+        load_teacher_logits(_manifest(tmp_path, _record(fall_logit=bad)), train_clip_ids={"train-a"}, outer_test_clip_ids=set(), outer_fold="s4")
+
+
+def test_manifest_rejects_blank_only_jsonl(tmp_path):
+    """Break caught: whitespace-only JSONL is accepted as a valid no-op teacher."""
+    path = tmp_path / "teacher.jsonl"
+    path.write_text(" \n\t\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="empty"):
+        load_teacher_logits(path, train_clip_ids={"train-a"}, outer_test_clip_ids=set(), outer_fold="s4")
 
 
 @pytest.mark.parametrize(
@@ -72,6 +99,15 @@ def test_matching_teacher_and_student_logits_have_near_zero_distillation():
     teacher = torch.tensor([2.0, -1.0])
     loss = masked_binary_distillation(student, teacher, torch.tensor([True, True]), temperature=2.0)
     assert loss.item() < 1e-7
+
+
+def test_distillation_matches_fixed_binary_kl_oracle_for_partial_mask_and_temperature():
+    """Break caught: changing class pair, mask reduction, or omitting T squared changes KL."""
+    loss = masked_binary_distillation(
+        torch.tensor([0.25, -1.0, 2.0]), torch.tensor([1.5, 0.5, -0.25]),
+        torch.tensor([True, False, True]), temperature=2.0,
+    )
+    assert loss.item() == pytest.approx(0.3969758152961731, rel=1e-6, abs=1e-7)
 
 
 def test_empty_distillation_mask_is_differentiable_zero():

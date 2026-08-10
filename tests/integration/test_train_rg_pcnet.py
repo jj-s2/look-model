@@ -177,19 +177,72 @@ def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_pat
     teacher = tmp_path / "teacher.jsonl"
     teacher_bytes = (json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 4.0, "checkpoint_sha256": "b" * 64}) + "\n").encode()
     teacher.write_bytes(teacher_bytes)
-    seen = []
+    seen, target_batches = [], []
     real_loss = rg_training.compute_rgpc_loss
+    real_targets = rg_training._targets
+
+    def capture_targets(batch):
+        target_batches.append(batch.clip_ids)
+        return real_targets(batch)
 
     def capture(*args, **kwargs):
         result = real_loss(*args, **kwargs)
         seen.append((args[1].teacher_mask.detach().cpu().tolist(), args[1].teacher_fall_logit.detach().cpu().tolist(), result.components["distill"].item()))
         return result
 
+    monkeypatch.setattr(rg_training, "_targets", capture_targets)
     monkeypatch.setattr(rg_training, "compute_rgpc_loss", capture)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
     manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
-    assert any(any(mask) and 4.0 in logits and distill > 0.0 for mask, logits, distill in seen)
+    for clip_ids, (mask, logits, distill) in zip(target_batches, seen):
+        assert len(mask) == len(logits)
+        for clip_id, actual_mask, actual_logit in zip(clip_ids, mask, logits):
+            expected = clip_id == "s1-adl"
+            assert actual_mask is expected
+            assert actual_logit == (4.0 if expected else 0.0)
+        if any(mask):
+            assert distill > 0.0
     assert manifest["teacher_manifest_sha256"] == hashlib.sha256(teacher_bytes).hexdigest()
+    assert manifest["teacher_checkpoint_sha256"] == "b" * 64
+
+
+@pytest.mark.parametrize("outer_fold", ("", "   ", 7))
+def test_teacher_rejects_present_but_invalid_split_outer_fold(tmp_path, outer_fold):
+    """Break caught: an invalid declared fold falls through to subject-derived fold."""
+    lock, split, config = _write_fixture(tmp_path)
+    payload = json.loads(split.read_text(encoding="utf-8"))
+    payload["outer_fold"] = outer_fold
+    split.write_text(json.dumps(payload), encoding="utf-8")
+    teacher = _manifest = tmp_path / "teacher.jsonl"
+    teacher.write_text(json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 1.0, "checkpoint_sha256": "a" * 64}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="split outer_fold must be a non-empty string"):
+        rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
+
+
+def test_training_uses_teacher_snapshot_when_manifest_changes_during_forward(tmp_path, monkeypatch):
+    """Break caught: a second manifest read mixes changed teacher logits or provenance into a run."""
+    lock, split, config = _write_fixture(tmp_path)
+    payload = json.loads(split.read_text(encoding="utf-8")); payload["outer_fold"] = "s3"; split.write_text(json.dumps(payload), encoding="utf-8")
+    teacher = tmp_path / "teacher.jsonl"
+    initial = (json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 4.0, "checkpoint_sha256": "b" * 64}) + "\n").encode()
+    teacher.write_bytes(initial)
+    seen, changed = [], False
+    real_forward, real_targets = rg_training.RGPCNet.forward, rg_training._targets
+    def mutate(self, *args, **kwargs):
+        nonlocal changed
+        if not changed:
+            changed = True
+            teacher.write_text(json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": -9.0, "checkpoint_sha256": "c" * 64}) + "\n", encoding="utf-8")
+        return real_forward(self, *args, **kwargs)
+    def capture(batch):
+        seen.append((batch.clip_ids, batch.teacher_fall_logit.tolist(), batch.teacher_mask.tolist()))
+        return real_targets(batch)
+    monkeypatch.setattr(rg_training.RGPCNet, "forward", mutate)
+    monkeypatch.setattr(rg_training, "_targets", capture)
+    rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
+    manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
+    assert any(logits[ids.index("s1-adl")] == 4.0 for ids, logits, _ in seen if "s1-adl" in ids)
+    assert manifest["teacher_manifest_sha256"] == hashlib.sha256(initial).hexdigest()
     assert manifest["teacher_checkpoint_sha256"] == "b" * 64
 
 

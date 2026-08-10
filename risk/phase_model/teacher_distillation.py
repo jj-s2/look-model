@@ -23,6 +23,24 @@ class TeacherLogits(Mapping[str, float]):
     checkpoint_sha256: str
     manifest_sha256: str
 
+    def __post_init__(self) -> None:
+        """Defensively normalize public construction as well as loader output."""
+        if not isinstance(self._values, Mapping):
+            raise TypeError("teacher values must be a mapping")
+        normalized: dict[str, float] = {}
+        for clip_id, value in self._values.items():
+            if not isinstance(clip_id, str) or not clip_id.strip():
+                raise ValueError("teacher clip_id must be a non-empty string")
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                raise ValueError("teacher fall_logit must be a finite number")
+            normalized[clip_id] = float(value)
+        for name in ("checkpoint_sha256", "manifest_sha256"):
+            digest = getattr(self, name)
+            if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
+                raise ValueError(f"{name} must be a SHA-256 hex string")
+            object.__setattr__(self, name, digest.lower())
+        object.__setattr__(self, "_values", MappingProxyType(dict(sorted(normalized.items()))))
+
     def __getitem__(self, clip_id: str) -> float:
         return self._values[clip_id]
 
@@ -47,7 +65,7 @@ def load_teacher_logits(
     values: dict[str, float] = {}
     checkpoint: str | None = None
     try:
-        lines = raw.decode("utf-8").splitlines()
+        lines = [line for line in raw.decode("utf-8").splitlines() if line.strip()]
     except UnicodeDecodeError as error:
         raise ValueError("teacher manifest must be UTF-8 JSONL") from error
     if not lines:
