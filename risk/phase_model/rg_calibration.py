@@ -120,6 +120,15 @@ class CalibrationArtifact:
     brier_after: float
     split_hash: str
 
+    def __getattribute__(self, name: str) -> object:
+        if name == "class_counts":
+            try:
+                count0, count1 = object.__getattribute__(self, "_class_counts_values")
+            except AttributeError:
+                return object.__getattribute__(self, name)
+            return _ImmutableClassCounts({"0": count0, "1": count1})
+        return object.__getattribute__(self, name)
+
     def __post_init__(self) -> None:
         temperature = float(self.temperature)
         if not math.isfinite(temperature) or not _MIN_TEMPERATURE <= temperature <= _MAX_TEMPERATURE:
@@ -150,7 +159,10 @@ class CalibrationArtifact:
             raise ValueError("calibration metrics must be finite numbers")
 
         object.__setattr__(self, "temperature", temperature)
-        object.__setattr__(self, "class_counts", _ImmutableClassCounts(class_counts))
+        object.__setattr__(
+            self, "_class_counts_values", (class_counts["0"], class_counts["1"])
+        )
+        object.__delattr__(self, "class_counts")
         for name, value in zip(metric_names, metrics):
             object.__setattr__(self, name, value)
 

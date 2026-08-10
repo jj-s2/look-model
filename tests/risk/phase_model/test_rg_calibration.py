@@ -2,7 +2,7 @@ import copy
 import json
 import math
 import pickle
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from decimal import Decimal
 
 import numpy as np
@@ -185,9 +185,10 @@ def test_class_counts_block_reinitialization_and_public_mutators():
 
 def test_class_counts_support_copy_asdict_json_and_pickle_round_trips():
     artifact = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+    class_counts = artifact.class_counts
 
-    assert copy.copy(artifact.class_counts) is artifact.class_counts
-    assert copy.deepcopy(artifact.class_counts) is artifact.class_counts
+    assert copy.copy(class_counts) is class_counts
+    assert copy.deepcopy(class_counts) is class_counts
     assert copy.copy(artifact) == artifact
     assert copy.deepcopy(artifact) == artifact
 
@@ -199,6 +200,59 @@ def test_class_counts_support_copy_asdict_json_and_pickle_round_trips():
     assert restored == artifact
     with pytest.raises(TypeError, match="immutable"):
         restored.class_counts["0"] = 9
+
+
+def test_base_dict_bypasses_only_mutate_a_detached_class_counts_snapshot():
+    artifact = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+    snapshot = artifact.class_counts
+
+    dict.__setitem__(snapshot, "0", 9)
+    assert snapshot == {"0": 9, "1": 1}
+    assert artifact.class_counts == {"0": 1, "1": 1}
+
+    dict.__init__(snapshot, {"0": 0, "1": 2})
+    assert snapshot == {"0": 0, "1": 2}
+    assert artifact.class_counts == {"0": 1, "1": 1}
+    assert artifact.class_counts is not artifact.class_counts
+    assert artifact.sample_count == sum(artifact.class_counts.values()) == 2
+
+    payload = asdict(artifact)
+    assert payload["class_counts"] == {"0": 1, "1": 1}
+    assert json.loads(json.dumps(payload))["class_counts"] == {"0": 1, "1": 1}
+    assert "class_counts={'0': 1, '1': 1}" in repr(artifact)
+    assert dict(artifact.class_counts) == {"0": 1, "1": 1}
+
+
+def test_detached_counts_survive_artifact_copy_and_pickle_round_trips():
+    artifact = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+    copies = (
+        copy.copy(artifact),
+        copy.deepcopy(artifact),
+        pickle.loads(pickle.dumps(artifact)),
+    )
+
+    for copied in copies:
+        exposed = copied.class_counts
+        dict.__init__(exposed, {"0": 2, "1": 0})
+        assert copied.class_counts == {"0": 1, "1": 1}
+        assert copied == artifact
+        with pytest.raises(TypeError, match="immutable"):
+            copied.class_counts.update({"0": 2})
+
+
+def test_class_counts_remains_an_exact_named_dataclass_field():
+    assert [field.name for field in fields(CalibrationArtifact)] == [
+        "temperature",
+        "enabled",
+        "reason",
+        "sample_count",
+        "class_counts",
+        "nll_before",
+        "nll_after",
+        "brier_before",
+        "brier_after",
+        "split_hash",
+    ]
 
 
 def test_artifact_normalizes_decimal_and_numpy_metrics_for_json():
