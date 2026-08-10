@@ -168,6 +168,25 @@ def test_explicit_none_teacher_manifest_preserves_checkpoint_hash(tmp_path):
     assert first["checkpoint_sha256"] == second["checkpoint_sha256"]
 
 
+def _sorted_state_digest(path):
+    """Independent state digest: sorted key bytes followed by raw CPU tensor bytes."""
+    state = torch.load(path, weights_only=True)["model_state_dict"]
+    payload = b"".join(key.encode("utf-8") + state[key].detach().cpu().numpy().tobytes() for key in sorted(state))
+    return hashlib.sha256(payload).hexdigest()
+
+
+def test_no_teacher_matches_pinned_pre_distillation_baseline(tmp_path):
+    """Break caught: optional distillation changes the Task 6 no-teacher checkpoint or state."""
+    checkpoint = "cc61283411aca3cbb45592468ee1572bcb977c073287bc53b1a5c9814ce860ec"
+    state_digest = "c0c06807edd754c8bf097d0c8fec30a866852907994c3b92fca0a6c27cd21ae7"
+    lock, split, config = _write_fixture(tmp_path)
+    omitted = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "omitted", release_id="r1", config_path=config, device="cpu")
+    explicit = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "explicit", release_id="r1", config_path=config, device="cpu", teacher_manifest=None)
+    assert omitted["checkpoint_sha256"] == explicit["checkpoint_sha256"] == checkpoint
+    assert _sorted_state_digest(tmp_path / "omitted" / "checkpoint.pt") == state_digest
+    assert _sorted_state_digest(tmp_path / "explicit" / "checkpoint.pt") == state_digest
+
+
 def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_path, monkeypatch):
     """Break caught: teacher logits do not reach the loss, or their provenance is not recorded."""
     lock, split, config = _write_fixture(tmp_path)
@@ -177,13 +196,19 @@ def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_pat
     teacher = tmp_path / "teacher.jsonl"
     teacher_bytes = (json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 4.0, "checkpoint_sha256": "b" * 64}) + "\n").encode()
     teacher.write_bytes(teacher_bytes)
-    seen, target_batches = [], []
+    seen, target_batches, injected = [], [], []
     real_loss = rg_training.compute_rgpc_loss
     real_targets = rg_training._targets
+    real_inject = rg_training._inject_teacher
 
     def capture_targets(batch):
         target_batches.append(batch.clip_ids)
         return real_targets(batch)
+
+    def capture_inject(batch, loaded_teacher):
+        result = real_inject(batch, loaded_teacher)
+        injected.append((result.clip_ids, result.teacher_fall_logit.detach().cpu().tolist(), result.teacher_mask.detach().cpu().tolist()))
+        return result
 
     def capture(*args, **kwargs):
         result = real_loss(*args, **kwargs)
@@ -191,6 +216,7 @@ def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_pat
         return result
 
     monkeypatch.setattr(rg_training, "_targets", capture_targets)
+    monkeypatch.setattr(rg_training, "_inject_teacher", capture_inject)
     monkeypatch.setattr(rg_training, "compute_rgpc_loss", capture)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
     manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
@@ -202,6 +228,9 @@ def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_pat
             assert actual_logit == (4.0 if expected else 0.0)
         if any(mask):
             assert distill > 0.0
+    assert len(injected) == 4
+    assert len(target_batches) == len(seen) == 2
+    assert all(not any(clip_id.startswith("s3-") for clip_id in ids) for ids, _, _ in injected)
     assert manifest["teacher_manifest_sha256"] == hashlib.sha256(teacher_bytes).hexdigest()
     assert manifest["teacher_checkpoint_sha256"] == "b" * 64
 
@@ -222,6 +251,7 @@ def test_teacher_rejects_present_but_invalid_split_outer_fold(tmp_path, outer_fo
 def test_training_uses_teacher_snapshot_when_manifest_changes_during_forward(tmp_path, monkeypatch):
     """Break caught: a second manifest read mixes changed teacher logits or provenance into a run."""
     lock, split, config = _write_fixture(tmp_path)
+    config.write_text(config.read_text(encoding="utf-8").replace("EPOCHS=1", "EPOCHS=2").replace("PATIENCE=1", "PATIENCE=4"), encoding="utf-8")
     payload = json.loads(split.read_text(encoding="utf-8")); payload["outer_fold"] = "s3"; split.write_text(json.dumps(payload), encoding="utf-8")
     teacher = tmp_path / "teacher.jsonl"
     initial = (json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 4.0, "checkpoint_sha256": "b" * 64}) + "\n").encode()
@@ -241,7 +271,9 @@ def test_training_uses_teacher_snapshot_when_manifest_changes_during_forward(tmp
     monkeypatch.setattr(rg_training, "_targets", capture)
     rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
     manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
-    assert any(logits[ids.index("s1-adl")] == 4.0 for ids, logits, _ in seen if "s1-adl" in ids)
+    observations = [logits[ids.index("s1-adl")] for ids, logits, _ in seen if "s1-adl" in ids]
+    assert len(observations) >= 2
+    assert observations == [4.0] * len(observations)
     assert manifest["teacher_manifest_sha256"] == hashlib.sha256(initial).hexdigest()
     assert manifest["teacher_checkpoint_sha256"] == "b" * 64
 

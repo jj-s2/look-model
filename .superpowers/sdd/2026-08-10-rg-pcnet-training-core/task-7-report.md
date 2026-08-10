@@ -62,3 +62,15 @@ only its own files.
   current omission/explicit-None all produced checkpoint SHA
   `cc61283411aca3cbb45592468ee1572bcb977c073287bc53b1a5c9814ce860ec` and
   sorted-state digest `c0c06807edd754c8bf097d0c8fec30a866852907994c3b92fca0a6c27cd21ae7`.
+
+## Review fix round 2
+
+- The pre-distillation checkpoint and independent sorted-state digest are now
+  executable integration-test constants for both omitted and explicit-None
+  teacher paths.
+- The legacy six loss components, total, and window/phase/reliability gradients
+  are pinned to values captured from the isolated base worktree.
+- Injection spies assert all four clean/corrupt training injections, exact
+  per-clip values, two primary loss targets, and no validation clip injection.
+- The snapshot race spans two epochs and observes the teacher clip at least
+  twice, always retaining the initial logit and provenance hashes.

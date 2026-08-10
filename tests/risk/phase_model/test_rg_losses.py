@@ -58,6 +58,20 @@ def test_no_teacher_distillation_preserves_graph_connected_zero():
     assert output.window_fall_logit.grad is not None
 
 
+def test_no_teacher_loss_and_gradients_match_pinned_pre_distillation_oracle():
+    """Break caught: optional graph-zero path perturbs any legacy component, total, or gradient."""
+    output = _output(fall=(0.0,), phase=torch.zeros(1, 2, 3), reliability=torch.zeros(1, 2))
+    loss = compute_rgpc_loss(output, _targets())
+    loss.total.backward()
+    expected = {"fall": 0.6931471824645996, "phase": 0.0, "transition": 0.222222238779068, "reliability": 0.6931471824645996, "consistency": 0.0, "selective": 0.6465736031532288}
+    assert {name: loss.components[name].item() for name in expected} == pytest.approx(expected)
+    assert loss.total.item() == pytest.approx(0.9879709482192993)
+    assert loss.components["distill"].item() == 0.0
+    assert output.window_fall_logit.grad.tolist() == pytest.approx([-0.5249999761581421])
+    torch.testing.assert_close(output.phase_logits.grad, torch.tensor([[[0.003703703638166189, -0.007407408207654953, 0.003703703638166189], [-0.007407408207654953, 0.003703703638166189, 0.003703703638166189]]]))
+    torch.testing.assert_close(output.reliability_logits.grad, torch.tensor([[0.0711643397808075, 0.0711643397808075]]))
+
+
 def _targets_on(device):
     targets = _targets()
     return RGPCLossTargets(
