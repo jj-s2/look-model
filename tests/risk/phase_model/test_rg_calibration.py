@@ -1,7 +1,14 @@
+import copy
+import json
 import math
+import pickle
+from dataclasses import asdict
+from decimal import Decimal
 
+import numpy as np
 import pytest
 
+import risk.phase_model.rg_calibration as rg_calibration
 from risk.phase_model.rg_calibration import (
     CalibrationArtifact,
     _temperature_candidates,
@@ -28,10 +35,14 @@ def test_temperature_is_bounded_and_only_enabled_when_nll_improves():
 
 def test_temperature_grid_has_exact_count_and_endpoints():
     candidates = _temperature_candidates()
+    log_steps = [math.log(right / left) for left, right in zip(candidates, candidates[1:])]
 
     assert len(candidates) == 181
     assert candidates[0] == pytest.approx(0.5)
     assert candidates[-1] == pytest.approx(5.0)
+    assert candidates[45] == pytest.approx(0.5 * 10 ** 0.25)
+    assert candidates[90] == pytest.approx(0.5 * math.sqrt(10.0))
+    assert max(log_steps) - min(log_steps) < 1e-15
     assert all(0.5 <= value <= 5.0 for value in candidates)
     assert all(left < right for left, right in zip(candidates, candidates[1:]))
 
@@ -80,6 +91,44 @@ def test_nonfinite_fit_data_returns_finite_identity_fallback():
     )
 
 
+def test_nonfinite_audit_metrics_preserve_infinity_sign():
+    aligned = fit_bounded_temperature(
+        [math.inf, -math.inf], [1, 0], split_hash="abc"
+    )
+    opposite = fit_bounded_temperature(
+        [-math.inf, math.inf], [1, 0], split_hash="abc"
+    )
+
+    assert aligned.nll_before < opposite.nll_before
+    assert aligned.brier_before < opposite.brier_before
+    assert aligned.nll_after == aligned.nll_before
+    assert opposite.nll_after == opposite.nll_before
+    assert all(
+        math.isfinite(value)
+        for result in (aligned, opposite)
+        for value in (
+            result.nll_before,
+            result.nll_after,
+            result.brier_before,
+            result.brier_after,
+        )
+    )
+
+
+def test_nan_audit_metrics_are_conservative_against_each_label():
+    aligned_infinities = fit_bounded_temperature(
+        [math.inf, -math.inf], [1, 0], split_hash="abc"
+    )
+    unknown_logits = fit_bounded_temperature(
+        [math.nan, math.nan], [1, 0], split_hash="abc"
+    )
+
+    assert unknown_logits.nll_before > aligned_infinities.nll_before
+    assert unknown_logits.brier_before > aligned_infinities.brier_before
+    assert unknown_logits.nll_after == unknown_logits.nll_before
+    assert unknown_logits.brier_after == unknown_logits.brier_before
+
+
 def test_no_improvement_returns_identity_metrics():
     result = fit_bounded_temperature([0.0, 0.0], [0, 1], split_hash="abc")
 
@@ -111,6 +160,84 @@ def test_artifact_snapshots_and_freezes_caller_owned_class_counts():
         artifact.class_counts["0"] = 99
     with pytest.raises(TypeError):
         artifact.class_counts.update({"0": 99})
+
+
+def _mutate_with_ior(class_counts):
+    class_counts |= {"0": 99}
+
+
+def test_class_counts_block_reinitialization_and_public_mutators():
+    artifact = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+    class_counts = artifact.class_counts
+
+    mutations = (
+        lambda: class_counts.__init__({"0": 9, "1": 9}),
+        lambda: class_counts.__setitem__("0", 9),
+        lambda: class_counts.update({"0": 9}),
+        lambda: class_counts.pop("0"),
+        lambda: _mutate_with_ior(class_counts),
+    )
+    for mutate in mutations:
+        with pytest.raises(TypeError, match="immutable"):
+            mutate()
+        assert class_counts == {"0": 1, "1": 1}
+
+
+def test_class_counts_support_copy_asdict_json_and_pickle_round_trips():
+    artifact = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+
+    assert copy.copy(artifact.class_counts) is artifact.class_counts
+    assert copy.deepcopy(artifact.class_counts) is artifact.class_counts
+    assert copy.copy(artifact) == artifact
+    assert copy.deepcopy(artifact) == artifact
+
+    payload = asdict(artifact)
+    assert payload["class_counts"] == {"0": 1, "1": 1}
+    assert json.loads(json.dumps(payload)) == payload
+
+    restored = pickle.loads(pickle.dumps(artifact))
+    assert restored == artifact
+    with pytest.raises(TypeError, match="immutable"):
+        restored.class_counts["0"] = 9
+
+
+def test_artifact_normalizes_decimal_and_numpy_metrics_for_json():
+    artifact = CalibrationArtifact(
+        temperature=1.0,
+        enabled=False,
+        reason="identity",
+        sample_count=2,
+        class_counts={"0": 1, "1": 1},
+        nll_before=Decimal("0.5"),
+        nll_after=np.float32(0.5),
+        brier_before=Decimal("0.25"),
+        brier_after=np.float32(0.25),
+        split_hash="abc",
+    )
+
+    assert all(
+        type(getattr(artifact, name)) is float
+        for name in ("nll_before", "nll_after", "brier_before", "brier_after")
+    )
+    payload = asdict(artifact)
+    assert json.loads(json.dumps(payload)) == payload
+
+
+@pytest.mark.parametrize("metric", [object(), Decimal("NaN")])
+def test_artifact_rejects_invalid_metrics_with_stable_value_error(metric):
+    with pytest.raises(ValueError, match="calibration metrics must be finite numbers"):
+        CalibrationArtifact(
+            temperature=1.0,
+            enabled=False,
+            reason="identity",
+            sample_count=2,
+            class_counts={"0": 1, "1": 1},
+            nll_before=metric,
+            nll_after=0.5,
+            brier_before=0.25,
+            brier_after=0.25,
+            split_hash="abc",
+        )
 
 
 def test_calibrate_returns_independent_output_and_rejects_nonfinite_logits():
@@ -165,3 +292,59 @@ def test_enabled_artifact_has_real_metric_improvement():
         result.nll_after < result.nll_before - 1e-6
         or result.brier_after < result.brier_before - 1e-6
     )
+
+
+def test_brier_only_improvement_enables_calibration(monkeypatch):
+    monkeypatch.setattr(rg_calibration, "_temperature_candidates", lambda: (2.0,))
+    monkeypatch.setattr(
+        rg_calibration,
+        "_metrics",
+        lambda _logits, _labels, temperature: (
+            (0.5, 0.25) if temperature == 1.0 else (0.5, 0.20)
+        ),
+    )
+
+    result = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+
+    assert result.enabled is True
+    assert result.temperature == 2.0
+    assert result.nll_after == result.nll_before
+    assert result.brier_after < result.brier_before - 1e-6
+
+
+def test_improvement_equal_to_epsilon_does_not_enable(monkeypatch):
+    monkeypatch.setattr(rg_calibration, "_temperature_candidates", lambda: (2.0,))
+    monkeypatch.setattr(
+        rg_calibration,
+        "_metrics",
+        lambda _logits, _labels, temperature: (
+            (1.0, 0.25) if temperature == 1.0 else (1.0 - 1e-6, 0.25)
+        ),
+    )
+
+    result = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+
+    assert result.enabled is False
+    assert result.temperature == 1.0
+    assert result.nll_after == result.nll_before
+
+
+@pytest.mark.parametrize("candidate_order", [(2.0, 0.5), (0.5, 2.0)])
+def test_metric_ties_choose_lower_equidistant_temperature_deterministically(
+    monkeypatch, candidate_order
+):
+    monkeypatch.setattr(
+        rg_calibration, "_temperature_candidates", lambda: candidate_order
+    )
+    monkeypatch.setattr(
+        rg_calibration,
+        "_metrics",
+        lambda _logits, _labels, temperature: (
+            (1.0, 0.5) if temperature == 1.0 else (0.9, 0.4)
+        ),
+    )
+
+    result = fit_bounded_temperature([1.0, -1.0], [1, 0], split_hash="abc")
+
+    assert result.enabled is True
+    assert result.temperature == 0.5

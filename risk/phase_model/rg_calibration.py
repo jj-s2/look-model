@@ -1,4 +1,10 @@
-"""Bounded validation-only temperature calibration for RG-PCNet."""
+"""Bounded validation-only temperature calibration for RG-PCNet.
+
+Non-finite fit logits disable calibration. For finite audit metrics, infinities
+retain their sign at a bounded logit of ``+/-30`` and NaNs use the wrong-sign
+bound for their aligned label. This conservative convention keeps evidence
+distinguishable without allowing invalid data to appear favorable.
+"""
 
 from __future__ import annotations
 
@@ -11,10 +17,19 @@ _MIN_TEMPERATURE = 0.5
 _MAX_TEMPERATURE = 5.0
 _TEMPERATURE_CANDIDATE_COUNT = 181
 _IMPROVEMENT_EPSILON = 1e-6
+_NONFINITE_AUDIT_LOGIT = 30.0
 
 
 class _ImmutableClassCounts(dict[str, int]):
     """A snapshotted dict that retains dict compatibility without mutation."""
+
+    __slots__ = ("_initialized",)
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        if getattr(self, "_initialized", False):
+            self._immutable()
+        dict.__init__(self, *args, **kwargs)
+        object.__setattr__(self, "_initialized", True)
 
     @staticmethod
     def _immutable(*_args: object, **_kwargs: object) -> None:
@@ -28,6 +43,16 @@ class _ImmutableClassCounts(dict[str, int]):
     setdefault = _immutable
     update = _immutable
     __ior__ = _immutable
+
+    def __copy__(self) -> _ImmutableClassCounts:
+        return self
+
+    def __deepcopy__(self, memo: dict[int, object]) -> _ImmutableClassCounts:
+        memo[id(self)] = self
+        return self
+
+    def __reduce_ex__(self, _protocol: int) -> tuple[object, tuple[dict[str, int]]]:
+        return type(self), (dict(self),)
 
 
 def _sigmoid(value: float) -> float:
@@ -71,6 +96,17 @@ def _metrics(
     return nll, brier
 
 
+def _audit_logit(value: float, label: int) -> float:
+    """Map a non-finite logit to a finite, evidence-preserving audit bound."""
+    if math.isnan(value):
+        return -_NONFINITE_AUDIT_LOGIT if label == 1 else _NONFINITE_AUDIT_LOGIT
+    if value > 0.0:
+        return _NONFINITE_AUDIT_LOGIT
+    if value < 0.0:
+        return -_NONFINITE_AUDIT_LOGIT
+    return value
+
+
 @dataclass(frozen=True)
 class CalibrationArtifact:
     temperature: float
@@ -105,12 +141,18 @@ class CalibrationArtifact:
         if sum(class_counts.values()) != self.sample_count:
             raise ValueError("class_counts must sum to sample_count")
 
-        metrics = (self.nll_before, self.nll_after, self.brier_before, self.brier_after)
-        if any(not math.isfinite(float(value)) for value in metrics):
-            raise ValueError("calibration metrics must be finite")
+        metric_names = ("nll_before", "nll_after", "brier_before", "brier_after")
+        try:
+            metrics = tuple(float(getattr(self, name)) for name in metric_names)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("calibration metrics must be finite numbers") from exc
+        if any(not math.isfinite(value) for value in metrics):
+            raise ValueError("calibration metrics must be finite numbers")
 
         object.__setattr__(self, "temperature", temperature)
         object.__setattr__(self, "class_counts", _ImmutableClassCounts(class_counts))
+        for name, value in zip(metric_names, metrics):
+            object.__setattr__(self, name, value)
 
     def calibrate(self, logits: Sequence[float]) -> list[float]:
         normalized_logits: list[float] = []
@@ -186,7 +228,10 @@ def fit_bounded_temperature(
     }
 
     if any(not math.isfinite(value) for value in normalized_logits):
-        safe_logits = [value if math.isfinite(value) else 0.0 for value in normalized_logits]
+        safe_logits = [
+            value if math.isfinite(value) else _audit_logit(value, label)
+            for value, label in zip(normalized_logits, normalized_labels)
+        ]
         identity_nll, identity_brier = _metrics(safe_logits, normalized_labels, 1.0)
         return _artifact(
             temperature=1.0,
