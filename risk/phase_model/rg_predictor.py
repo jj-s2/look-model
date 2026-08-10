@@ -48,7 +48,9 @@ class RGPredictor:
         payload = torch.load(checkpoint, map_location="cpu", weights_only=False)
         if not isinstance(payload, Mapping):
             raise ValueError("RG-PCNet checkpoint must contain a mapping")
-        raw_state = payload.get("model", payload.get("state_dict"))
+        raw_state = payload.get("model")
+        if raw_state is None:
+            raw_state = payload.get("model_state_dict", payload.get("state_dict"))
         if not isinstance(raw_state, Mapping):
             raise ValueError("RG-PCNet checkpoint is missing model state dict")
         model_config = payload.get("model_config", {})

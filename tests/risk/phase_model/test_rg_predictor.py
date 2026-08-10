@@ -36,7 +36,7 @@ def _window():
 def _release(tmp_path):
     model = RGPCNet()
     checkpoint = tmp_path / "checkpoint.pt"
-    torch.save({"model": model.state_dict()}, checkpoint)
+    torch.save({"model_state_dict": model.state_dict(), "model_config": {"input_dim": 112, "hidden_dim": 128, "dropout": 0.1}}, checkpoint)
     digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
     config = _config()
     config = RGPCReleaseConfig(**{**config.to_dict(), "model_sha256": digest})
