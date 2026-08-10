@@ -31,7 +31,7 @@ class PhaseRiskService:
             score = min(observation.scores) if observation.scores else 0.0
             return (SensorEvent(
                 timestamp=timestamp, source=Source.VISION, event_type=EventType.POSE,
-                payload={"tracking_id": tracking_id, "quality_mode": "abstained"},
+                payload={"tracking_id": tracking_id, "quality_mode": "abstained", "reason": "model_reliability_gate"},
                 quality=DataQuality(False, max(0.0, min(1.0, score)), False, "insufficient_window"),
             ),)
         assessment = assess_window_quality(window)
@@ -42,6 +42,12 @@ class PhaseRiskService:
                 quality=DataQuality(False, assessment.score, False, ";".join(assessment.reasons)),
             ),)
         output = self.predictor.predict(window)
+        if output.fall_decision is None:
+            return (SensorEvent(
+                timestamp=timestamp, source=Source.VISION, event_type=EventType.POSE,
+                payload={"tracking_id": tracking_id, "quality_mode": "abstained"},
+                quality=DataQuality(False, min(assessment.score, output.quality_score), False, "model_reliability_gate"),
+            ),)
         confidence = min(assessment.score, output.quality_score)
         quality = DataQuality(True, confidence, False, None if confidence >= 0.55 else "degraded_pose_quality")
         common_payload = {
@@ -60,7 +66,7 @@ class PhaseRiskService:
                 timestamp=timestamp, source=Source.VISION, event_type=EventType.PREFALL_WARNING,
                 payload={**common_payload, "score": output.prefall_prob, "confirmed": True}, quality=quality,
             ))
-        if output.fall_event_prob >= 0.3:
+        if output.fall_decision == 1:
             events.append(SensorEvent(
                 timestamp=timestamp, source=Source.VISION, event_type=EventType.FALL_FORECAST,
                 payload={**common_payload, "score": output.fall_event_prob}, quality=quality,

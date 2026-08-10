@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from risk.phase_model.schema import Phase, PhaseModelOutput, PoseObservation
 from risk.phase_model.service import PhaseRiskService
+from core.events import EventType
 
 
 class OneShotBuffer:
@@ -49,3 +50,20 @@ def test_service_emits_prefall_warning_after_smoothing():
     service.observe(item)
     events = service.observe(item)
     assert any(event.event_type.value == "prefall_warning" for event in events)
+
+
+def test_service_emits_abstained_pose_without_fall_forecast():
+    output = PhaseModelOutput(
+        (0.1, 0.1, 0.1, 0.1, 0.5, 0.1), 0.8, 0.1, 0.1, 0.2,
+        "e1", "m1", fall_decision=None,
+    )
+    item = observation()
+    class Buffer:
+        def append(self, item):
+            return type("Window", (), {"short": (item,), "long": (item,)})()
+    service = PhaseRiskService(FixedPredictor(output), Buffer())
+    events = service.observe(item)
+    assert not any(event.event_type is EventType.FALL_FORECAST for event in events)
+    pose = next(event for event in events if event.event_type is EventType.POSE)
+    assert pose.payload["quality_mode"] == "abstained"
+    assert pose.quality.reason == "model_reliability_gate"

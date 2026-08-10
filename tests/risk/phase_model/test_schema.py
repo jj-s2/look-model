@@ -27,6 +27,19 @@ def test_phase_output_is_normalized_and_versioned():
     assert sum(output.phase_probs) == pytest.approx(1.0)
     assert output.phase is Phase.NORMAL_ADL
     assert json.loads(output.to_json())["schema_version"] == "padtfs.phase_output.v1"
+    assert output.fall_decision == 0
+
+
+def test_phase_output_distinguishes_legacy_decision_from_explicit_abstention():
+    legacy = valid_output(fall_event_prob=0.8)
+    assert legacy.fall_decision == 1
+    payload = legacy.to_dict()
+    payload["fall_decision"] = None
+    abstained = PhaseModelOutput.from_dict(payload)
+    assert abstained.fall_decision is None
+    omitted = dict(payload)
+    omitted.pop("fall_decision")
+    assert PhaseModelOutput.from_dict(omitted).fall_decision == 1
 
 
 @pytest.mark.parametrize("value", [-0.1, 1.1, True])

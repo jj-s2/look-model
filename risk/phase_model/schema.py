@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 import json
 import math
 from numbers import Real
 from typing import Mapping
+
+
+_OMITTED_FALL_DECISION = object()
 
 
 class Phase(str, Enum):
@@ -112,6 +115,9 @@ class PhaseModelOutput:
     embedding_version: str
     model_version: str
     phase: Phase | None = None
+    # The private sentinel preserves the historical constructor behavior while
+    # allowing RG-PCNet to pass an explicit ``None`` as a reliability abstention.
+    fall_decision: int | None | object = field(default=_OMITTED_FALL_DECISION, repr=False)
 
     def __post_init__(self) -> None:
         if len(self.phase_probs) != len(Phase):
@@ -130,9 +136,13 @@ class PhaseModelOutput:
             raise ValueError("phase must be a Phase")
         if self.phase is None:
             object.__setattr__(self, "phase", tuple(Phase)[probabilities.index(max(probabilities))])
+        if self.fall_decision is _OMITTED_FALL_DECISION:
+            object.__setattr__(self, "fall_decision", int(self.fall_event_prob >= 0.3))
+        elif self.fall_decision is not None and self.fall_decision not in (0, 1):
+            raise ValueError("fall_decision must be 0, 1, or None")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result = {
             "schema_version": "padtfs.phase_output.v1",
             "phase_probs": list(self.phase_probs),
             "fall_event_prob": self.fall_event_prob,
@@ -142,7 +152,9 @@ class PhaseModelOutput:
             "embedding_version": self.embedding_version,
             "model_version": self.model_version,
             "phase": self.phase.value if self.phase else None,
+            "fall_decision": self.fall_decision,
         }
+        return result
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
@@ -153,6 +165,11 @@ class PhaseModelOutput:
             raise ValueError("unsupported phase output schema")
         try:
             phase = data.get("phase")
+            decision_kwargs = {}
+            if "fall_decision" in data:
+                decision_kwargs["fall_decision"] = (
+                    None if data["fall_decision"] is None else int(data["fall_decision"])
+                )
             return cls(
                 phase_probs=tuple(float(value) for value in data["phase_probs"]),  # type: ignore[union-attr]
                 fall_event_prob=data["fall_event_prob"],  # type: ignore[arg-type]
@@ -162,6 +179,9 @@ class PhaseModelOutput:
                 embedding_version=str(data["embedding_version"]),
                 model_version=str(data["model_version"]),
                 phase=Phase(str(phase)) if phase is not None else None,
+                # Missing keys retain the legacy 0.3-derived decision; an
+                # explicit JSON null remains an RG-PCNet abstention.
+                **decision_kwargs,
             )
         except (KeyError, TypeError, ValueError) as error:
             raise ValueError("invalid phase model output") from error
