@@ -166,6 +166,58 @@ class CalibrationArtifact:
         for name, value in zip(metric_names, metrics):
             object.__setattr__(self, name, value)
 
+    def __setstate__(self, state: object) -> None:
+        error = "invalid calibration artifact pickle state"
+        if type(state) is not dict:
+            raise ValueError(error)
+
+        value_fields = {
+            "temperature",
+            "enabled",
+            "reason",
+            "sample_count",
+            "nll_before",
+            "nll_after",
+            "brier_before",
+            "brier_after",
+            "split_hash",
+        }
+        state_fields = set(state)
+        if state_fields == value_fields | {"class_counts"}:
+            class_counts = state["class_counts"]
+            if not isinstance(class_counts, dict):
+                raise ValueError(error)
+        elif state_fields == value_fields | {"_class_counts_values"}:
+            class_count_values = state["_class_counts_values"]
+            if type(class_count_values) is not tuple or len(class_count_values) != 2:
+                raise ValueError(error)
+            class_counts = {
+                "0": class_count_values[0],
+                "1": class_count_values[1],
+            }
+        else:
+            raise ValueError(error)
+
+        try:
+            validated = CalibrationArtifact(
+                temperature=state["temperature"],
+                enabled=state["enabled"],
+                reason=state["reason"],
+                sample_count=state["sample_count"],
+                class_counts=class_counts,
+                nll_before=state["nll_before"],
+                nll_after=state["nll_after"],
+                brier_before=state["brier_before"],
+                brier_after=state["brier_after"],
+                split_hash=state["split_hash"],
+            )
+        except Exception as exc:
+            raise ValueError(error) from exc
+
+        own_state = object.__getattribute__(self, "__dict__")
+        own_state.clear()
+        own_state.update(object.__getattribute__(validated, "__dict__"))
+
     def calibrate(self, logits: Sequence[float]) -> list[float]:
         normalized_logits: list[float] = []
         for value in logits:
