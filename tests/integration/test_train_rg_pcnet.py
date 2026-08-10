@@ -233,7 +233,7 @@ def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_pat
     for index in range(len(target_batches)):
         clip_ids = target_batches[index]
         mask, logits, distill = seen[index]
-        assert len(mask) == len(logits)
+        assert len(clip_ids) == len(mask) == len(logits)
         for item_index in range(len(clip_ids)):
             expected = clip_ids[item_index] == "s1-adl"
             assert mask[item_index] is expected

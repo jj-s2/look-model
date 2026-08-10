@@ -82,3 +82,8 @@ only its own files.
 - The race mutation now happens after the first real forward result and records
   all two-epoch injection and primary-target batches, each pinned to the
   initial teacher mapping.
+
+## Review fix round 4
+
+- Primary loss-target mapping now asserts clip-ID, mask, and logit lengths are
+  identical before indexed comparison.
