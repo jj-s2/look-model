@@ -11,6 +11,7 @@ import random
 import shutil
 import subprocess
 import tempfile
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Mapping
 
@@ -19,6 +20,7 @@ import numpy as np
 from .rg_losses import RGPCLossTargets, compute_rgpc_loss
 from .rg_pcnet import RGPCNet
 from .training_data import PhasePoseDataset, RGPCDataset, collate_rgpc_samples
+from .teacher_distillation import TeacherLogits, load_teacher_logits
 
 
 def seed_everything(seed: int) -> None:
@@ -153,7 +155,21 @@ def _to_device(batch, device):
 
 def _targets(primary):
     return RGPCLossTargets(primary.fall_target, primary.phase_target, primary.phase_mask,
-                           primary.reliability_target, primary.valid_mask, primary.dt)
+                           primary.reliability_target, primary.valid_mask, primary.dt,
+                           primary.teacher_fall_logit, primary.teacher_mask)
+
+
+def _inject_teacher(batch, teacher: TeacherLogits | None):
+    """Attach teacher values to a collated training batch without touching samples."""
+    import torch
+
+    values = [teacher.get(clip_id, 0.0) if teacher is not None else 0.0 for clip_id in batch.clip_ids]
+    mask = [teacher is not None and clip_id in teacher for clip_id in batch.clip_ids]
+    return replace(
+        batch,
+        teacher_fall_logit=torch.tensor(values, dtype=torch.float32, device=batch.features.device),
+        teacher_mask=torch.tensor(mask, dtype=torch.bool, device=batch.features.device),
+    )
 
 
 def _macro_f1(labels: list[int], predictions: list[int]) -> float:
@@ -182,7 +198,7 @@ def _cache_hashes(clips: list[dict], data_root: Path) -> dict[str, str]:
     return {clip["clip_id"]: _sha256(resolver._resolve_feature_path(clip)) for clip in sorted(clips, key=lambda item: item["clip_id"])}
 
 
-def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path, output_dir: Path, release_id: str, config_path: Path | None = None, device: str = "auto") -> dict[str, object]:
+def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path, output_dir: Path, release_id: str, config_path: Path | None = None, device: str = "auto", teacher_manifest: Path | None = None) -> dict[str, object]:
     """Train RG-PCNet using clean supervision and clip-aligned corrupt consistency views."""
     import torch
 
@@ -192,6 +208,7 @@ def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path,
     if not dataset_lock.exists() or not split_manifest.exists():
         raise FileNotFoundError("dataset lock and split manifest must exist")
     lock_bytes, split_bytes = dataset_lock.read_bytes(), split_manifest.read_bytes()
+    teacher_bytes = Path(teacher_manifest).read_bytes() if teacher_manifest is not None else None
     config, config_bytes, config_sha = _load_config_snapshot(config_path)
     seed = int(config.SEED)
     seed_everything(seed)
@@ -213,6 +230,21 @@ def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path,
     overlap = train_subjects & validation_subjects
     if overlap:
         raise ValueError(f"train and validation subjects overlap: {sorted(overlap)}")
+    teacher = None
+    if teacher_bytes is not None:
+        candidate_fold = split.get("outer_fold")
+        if isinstance(candidate_fold, str) and candidate_fold.strip():
+            outer_fold = candidate_fold
+        elif len(validation_subjects) == 1:
+            outer_fold = next(iter(validation_subjects))
+        else:
+            raise ValueError("outer_fold is required when validation subjects are not exactly one")
+        teacher = load_teacher_logits(
+            teacher_bytes,
+            train_clip_ids={str(clip["clip_id"]) for clip in train_clips},
+            outer_test_clip_ids={str(clip["clip_id"]) for clip in validation_clips},
+            outer_fold=outer_fold,
+        )
 
     cache_hashes = _cache_hashes(train_clips + validation_clips, data_root)
     clean_train = RGPCDataset(train_clips, data_root, seed=seed)
@@ -236,6 +268,7 @@ def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path,
             if clean_batch.clip_ids != corrupt_batch.clip_ids:
                 raise RuntimeError("clean and corrupted loader clip IDs are not aligned")
             clean_batch, corrupt_batch = _to_device(clean_batch, resolved_device), _to_device(corrupt_batch, resolved_device)
+            clean_batch, corrupt_batch = _inject_teacher(clean_batch, teacher), _inject_teacher(corrupt_batch, teacher)
             optimizer.zero_grad(set_to_none=True)
             clean_output = model(clean_batch.features, clean_batch.valid_mask)
             corrupted_output = model(corrupt_batch.features, corrupt_batch.valid_mask)
@@ -272,6 +305,9 @@ def train_rg_pcnet(*, dataset_lock: Path, split_manifest: Path, data_root: Path,
         checkpoint_hash = _sha256(checkpoint_path)
         metrics = {"batch_size": int(config.BATCH_SIZE), "best_epoch": stopping.best_epoch, "best_validation_macro_f1": stopping.best_score, "checkpoint_sha256": checkpoint_hash, "device": str(resolved_device), "epochs_completed": epoch + 1, "promoted": False, "release_id": release_id, "seed": seed, "validation_subjects": sorted(validation_subjects)}
         manifest = {"cache_hashes": cache_hashes, "config_source_sha256": config_sha, "cuda": torch.version.cuda, "device": str(resolved_device), "git_commit": _git_commit(), "input_manifest_hashes": {"dataset_lock": hashlib.sha256(lock_bytes).hexdigest(), "split_manifest": hashlib.sha256(split_bytes).hexdigest()}, "release_id": release_id, "resolved_config": vars(config), "seed": seed, "torch": torch.__version__}
+        if teacher is not None:
+            manifest["teacher_manifest_sha256"] = teacher.manifest_sha256
+            manifest["teacher_checkpoint_sha256"] = teacher.checkpoint_sha256
         (temporary / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
         (temporary / "run_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(temporary, output_dir)

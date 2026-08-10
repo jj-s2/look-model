@@ -38,6 +38,26 @@ def _targets(*, fall=(1.0,), phase=None, phase_mask=None, reliability=None, vali
     )
 
 
+def test_distillation_component_is_weighted_and_uses_only_teacher_mask():
+    """Break caught: distillation is omitted, unweighted, or includes unlabelled rows."""
+    output = _output(fall=(0.0,))
+    targets = _targets()
+    targets = replace(targets, teacher_fall_logit=torch.tensor([2.0]), teacher_mask=torch.tensor([True]))
+    loss = compute_rgpc_loss(output, targets)
+    assert loss.components["distill"].item() > 0.01
+    baseline = compute_rgpc_loss(output, _targets())
+    assert loss.total.item() == pytest.approx(baseline.total.item() + 0.2 * loss.components["distill"].item())
+
+
+def test_no_teacher_distillation_preserves_graph_connected_zero():
+    """Break caught: the optional teacher path changes the legacy loss or detaches gradients."""
+    output = _output(fall=(0.0,))
+    loss = compute_rgpc_loss(output, _targets())
+    assert loss.components["distill"].item() == 0.0
+    loss.total.backward()
+    assert output.window_fall_logit.grad is not None
+
+
 def _targets_on(device):
     targets = _targets()
     return RGPCLossTargets(

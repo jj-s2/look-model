@@ -160,6 +160,39 @@ def test_same_seed_cpu_runs_produce_the_same_checkpoint_hash(tmp_path):
     assert first["checkpoint_sha256"] == second["checkpoint_sha256"]
 
 
+def test_explicit_none_teacher_manifest_preserves_checkpoint_hash(tmp_path):
+    """Break caught: adding the optional argument changes no-teacher checkpoint bytes."""
+    lock, split, config = _write_fixture(tmp_path)
+    first = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "first", release_id="r1", config_path=config, device="cpu")
+    second = rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "second", release_id="r1", config_path=config, device="cpu", teacher_manifest=None)
+    assert first["checkpoint_sha256"] == second["checkpoint_sha256"]
+
+
+def test_training_injects_train_only_teacher_logits_and_records_snapshot(tmp_path, monkeypatch):
+    """Break caught: teacher logits do not reach the loss, or their provenance is not recorded."""
+    lock, split, config = _write_fixture(tmp_path)
+    payload = json.loads(split.read_text(encoding="utf-8"))
+    payload["outer_fold"] = "s3"
+    split.write_text(json.dumps(payload), encoding="utf-8")
+    teacher = tmp_path / "teacher.jsonl"
+    teacher_bytes = (json.dumps({"clip_id": "s1-adl", "outer_fold": "s3", "fall_logit": 4.0, "checkpoint_sha256": "b" * 64}) + "\n").encode()
+    teacher.write_bytes(teacher_bytes)
+    seen = []
+    real_loss = rg_training.compute_rgpc_loss
+
+    def capture(*args, **kwargs):
+        result = real_loss(*args, **kwargs)
+        seen.append((args[1].teacher_mask.detach().cpu().tolist(), args[1].teacher_fall_logit.detach().cpu().tolist(), result.components["distill"].item()))
+        return result
+
+    monkeypatch.setattr(rg_training, "compute_rgpc_loss", capture)
+    rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=tmp_path / "release", release_id="r1", config_path=config, device="cpu", teacher_manifest=teacher)
+    manifest = json.loads((tmp_path / "release" / "run_manifest.json").read_text(encoding="utf-8"))
+    assert any(any(mask) and 4.0 in logits and distill > 0.0 for mask, logits, distill in seen)
+    assert manifest["teacher_manifest_sha256"] == hashlib.sha256(teacher_bytes).hexdigest()
+    assert manifest["teacher_checkpoint_sha256"] == "b" * 64
+
+
 def test_existing_output_is_rejected_before_reading_training_inputs(tmp_path):
     output = tmp_path / "release"
     output.mkdir()

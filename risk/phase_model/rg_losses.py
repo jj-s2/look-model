@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 
 from .rg_pcnet import RGPCNetOutput
+from .teacher_distillation import masked_binary_distillation
 
 
 FORBIDDEN = ((0, 2), (2, 1))
@@ -22,6 +23,8 @@ class RGPCLossTargets:
     reliability_target: torch.Tensor
     valid_mask: torch.Tensor
     dt: torch.Tensor
+    teacher_fall_logit: torch.Tensor | None = None
+    teacher_mask: torch.Tensor | None = None
 
 
 @dataclass(frozen=True)
@@ -108,6 +111,11 @@ def compute_rgpc_loss(
         reliability = _zero(output.reliability_logits)
 
     consistency = _consistency_loss(output, corrupted_output, targets.reliability_target, valid)
+    if targets.teacher_fall_logit is None and targets.teacher_mask is None:
+        distill = _zero(output.window_fall_logit)
+    else:
+        assert targets.teacher_fall_logit is not None and targets.teacher_mask is not None
+        distill = masked_binary_distillation(output.window_fall_logit, targets.teacher_fall_logit, targets.teacher_mask)
 
     if torch.any(fall_known):
         sample_bce = F.binary_cross_entropy_with_logits(
@@ -127,6 +135,7 @@ def compute_rgpc_loss(
         "reliability": reliability,
         "consistency": consistency,
         "selective": selective,
+        "distill": distill,
     }
     total = (
         components["fall"]
@@ -135,6 +144,7 @@ def compute_rgpc_loss(
         + 0.3 * components["reliability"]
         + 0.1 * components["consistency"]
         + 0.1 * components["selective"]
+        + 0.2 * components["distill"]
     )
     if not torch.isfinite(total) or not all(torch.isfinite(value) for value in components.values()):
         raise ValueError("loss inputs must produce finite components")
@@ -219,6 +229,13 @@ def _validate_targets(targets: RGPCLossTargets, output: RGPCNetOutput) -> None:
     _validate_tensor(targets.phase_target, (batch, time), "phase_target", output.phase_logits.device, integral=True)
     _validate_frame_mask(targets.phase_mask, (batch, time), "phase_mask", output.phase_logits.device)
     _validate_tensor(targets.reliability_target, (batch, time), "reliability_target", output.phase_logits.device, floating=True)
+    if (targets.teacher_fall_logit is None) != (targets.teacher_mask is None):
+        raise ValueError("teacher_fall_logit and teacher_mask must be provided together")
+    if targets.teacher_fall_logit is not None:
+        _validate_tensor(targets.teacher_fall_logit, (batch,), "teacher_fall_logit", output.phase_logits.device, floating=True)
+        _validate_teacher_mask(targets.teacher_mask, (batch,), output.phase_logits.device)
+        if not torch.isfinite(targets.teacher_fall_logit).all():
+            raise ValueError("teacher_fall_logit must be finite")
     if not torch.isfinite(targets.fall_target).all() or not torch.all(
         (targets.fall_target == -1) | (targets.fall_target == 0) | (targets.fall_target == 1)
     ):
@@ -245,6 +262,11 @@ def _validate_frame_mask(mask: torch.Tensor, shape: tuple[int, int], name: str, 
         or (device is not None and mask.device != device)
     ):
         raise ValueError(f"{name} must have shape {shape}, dtype torch.bool, and the expected device")
+
+
+def _validate_teacher_mask(mask: torch.Tensor | None, shape: tuple[int], device: torch.device) -> None:
+    if not isinstance(mask, torch.Tensor) or mask.dtype is not torch.bool or tuple(mask.shape) != shape or mask.device != device:
+        raise ValueError(f"teacher_mask must have shape {shape}, dtype torch.bool, and the expected device")
 
 
 def _validate_dt(dt: torch.Tensor, shape: tuple[int, int], device: torch.device) -> None:

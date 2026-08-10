@@ -46,6 +46,8 @@ def test_collate_pads_time_and_preserves_valid_masks():
     assert batch.phase_mask.tolist() == [[True, True, False], [False, False, False]]
     assert batch.subject_ids == ("s1", "s2")
     np.testing.assert_allclose(batch.dt.numpy(), [[0.0, 2.0, 0.0], [0.0, 0.1, 3.0]])
+    assert batch.teacher_fall_logit.tolist() == [0.0, 0.0]
+    assert batch.teacher_mask.tolist() == [False, False]
 
 
 def test_reviewed_human_phase_sequence_maps_known_labels_and_masks_unknowns():

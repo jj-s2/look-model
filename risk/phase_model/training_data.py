@@ -273,6 +273,8 @@ class RGPCBatch:
     subject_ids: tuple[str, ...]
     corruptions: tuple[str, ...]
     corruption_severities: object
+    teacher_fall_logit: object
+    teacher_mask: object
 
 
 def phase_targets_for_record(record: Mapping[str, object], frames: int):
@@ -334,6 +336,8 @@ def collate_rgpc_samples(samples: Sequence[RGPCSample]) -> RGPCBatch:
         tuple(sample.subject_id for sample in samples),
         tuple(sample.corruption for sample in samples),
         torch.tensor([sample.corruption_severity for sample in samples], dtype=torch.float32),
+        torch.zeros(batch, dtype=torch.float32),
+        torch.zeros(batch, dtype=torch.bool),
     )
 
 
