@@ -1,6 +1,7 @@
 import json
+import itertools
 import math
-from dataclasses import FrozenInstanceError, asdict, fields
+from dataclasses import FrozenInstanceError, asdict, fields, replace
 
 import pytest
 
@@ -117,6 +118,25 @@ def test_exact_grids_pair_count_and_constraints_are_audited():
     )
 
 
+def test_hand_counted_fixture_has_exact_feasible_pair_count(monkeypatch):
+    _install_identity_calibration(monkeypatch)
+    records = [
+        OOFRecord("positive", 1, _logit(0.60), 1.0),
+        OOFRecord("negative", 0, _logit(0.40), 1.0),
+    ]
+
+    result = select_oof_thresholds(
+        records,
+        recall_floor=1.0,
+        fpr_ceiling=0.0,
+        coverage_floor=1.0,
+    )
+
+    # Exactly thresholds 0.41..0.60 classify both records correctly: 20 fall
+    # thresholds times all 19 reliability thresholds gives 380 feasible pairs.
+    assert result.feasible_pair_count == 380
+
+
 def test_reliability_is_a_gate_and_never_a_probability_multiplier(monkeypatch):
     _install_identity_calibration(monkeypatch)
     records = [
@@ -228,6 +248,24 @@ def test_remaining_rank_ties_use_fixed_grid_iteration(monkeypatch):
     assert result.reliability_threshold == 0.0
 
 
+def test_rank_key_is_exact_and_each_component_decides_lexicographically():
+    rank_key = nested_selection._rank_key
+    baseline = rank_key(
+        subject_macro_f1=0.7,
+        worst_subject_f1=0.4,
+        fpr=0.2,
+        coverage=0.6,
+        fall_threshold=0.5,
+    )
+
+    assert baseline == (0.7, 0.4, -0.2, 0.6, -0.5)
+    assert rank_key(0.8, 0.0, 1.0, 0.0, 0.8) > baseline
+    assert rank_key(0.7, 0.5, 1.0, 0.0, 0.8) > baseline
+    assert rank_key(0.7, 0.4, 0.1, 0.0, 0.8) > baseline
+    assert rank_key(0.7, 0.4, 0.2, 0.7, 0.8) > baseline
+    assert rank_key(0.7, 0.4, 0.2, 0.6, 0.4) > baseline
+
+
 def test_calibration_fit_and_probability_conversion_each_run_once(monkeypatch):
     artifact, fit_calls = _install_identity_calibration(monkeypatch)
 
@@ -273,6 +311,57 @@ def test_risk_coverage_curve_and_aurc_match_hand_calculation(monkeypatch):
         "empty prefix has coverage 0 and risk 0 because it contains no "
         "classification errors"
     )
+
+
+def test_signed_zero_is_canonical_in_records_hash_order_and_result():
+    records = (
+        OOFRecord("s1", 0, -0.0, -0.0),
+        OOFRecord("s1", 0, +0.0, +0.0),
+        OOFRecord("s2", 1, -0.0, +0.0),
+        OOFRecord("s2", 1, +0.0, -0.0),
+    )
+
+    assert all(record.fall_logit == 0.0 for record in records)
+    assert all(math.copysign(1.0, record.fall_logit) == 1.0 for record in records)
+    assert all(math.copysign(1.0, record.reliability) == 1.0 for record in records)
+
+    expected_order = nested_selection._canonical_records(records)
+    expected_hash = nested_selection._split_hash(expected_order)
+    expected_result = select_oof_thresholds(
+        records, recall_floor=0.0, fpr_ceiling=1.0, coverage_floor=0.0
+    )
+    for permutation in itertools.permutations(records):
+        canonical = nested_selection._canonical_records(permutation)
+        result = select_oof_thresholds(
+            permutation, recall_floor=0.0, fpr_ceiling=1.0, coverage_floor=0.0
+        )
+        assert canonical == expected_order
+        assert nested_selection._split_hash(canonical) == expected_hash
+        assert result == expected_result
+
+
+@pytest.mark.parametrize(
+    ("metrics", "constraints"),
+    [
+        ((0.5, 0.5, 0.5), (math.nextafter(0.5, 1.0), 0.5, 0.5)),
+        ((0.5, 0.5, 0.5), (0.5, math.nextafter(0.5, 0.0), 0.5)),
+        ((0.5, 0.5, 0.5), (0.5, 0.5, math.nextafter(0.5, 1.0))),
+    ],
+)
+def test_constraint_comparisons_accept_one_ulp_roundoff(metrics, constraints):
+    assert nested_selection._constraints_satisfied(*metrics, *constraints)
+
+
+@pytest.mark.parametrize(
+    ("metrics", "constraints"),
+    [
+        ((0.5, 0.5, 0.5), (0.5 + 2e-12, 0.5, 0.5)),
+        ((0.5, 0.5, 0.5), (0.5, 0.5 - 2e-12, 0.5)),
+        ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5 + 2e-12)),
+    ],
+)
+def test_constraint_comparisons_reject_beyond_shared_tolerance(metrics, constraints):
+    assert not nested_selection._constraints_satisfied(*metrics, *constraints)
 
 
 @pytest.mark.parametrize(
@@ -374,11 +463,141 @@ def test_result_and_records_are_frozen_json_friendly_audit_snapshots():
         "coverage is selected/all; recall, f1, and fpr are computed over "
         "selected records overall"
     )
-    assert json.loads(json.dumps(asdict(result)))["evaluated_pair_count"] == 1159
+    assert (
+        json.loads(json.dumps(asdict(result), allow_nan=False))["evaluated_pair_count"]
+        == 1159
+    )
     with pytest.raises(FrozenInstanceError):
         result.coverage = 0.0
     with pytest.raises(TypeError):
         result.fall_threshold_grid[0] = 0.0
+
+
+def _valid_result():
+    return select_oof_thresholds(
+        _brief_records(),
+        recall_floor=1.0,
+        fpr_ceiling=0.0,
+        coverage_floor=0.5,
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda result: {"evaluated_constraints": tuple(reversed(result.evaluated_constraints))},
+        lambda result: {
+            "evaluated_constraints": (
+                ("recall", result.recall_floor),
+                ("fpr_ceiling", result.fpr_ceiling),
+                ("coverage_floor", result.coverage_floor),
+            )
+        },
+        lambda result: {
+            "evaluated_constraints": (
+                ("recall_floor", result.recall_floor + 0.01),
+                ("fpr_ceiling", result.fpr_ceiling),
+                ("coverage_floor", result.coverage_floor),
+            )
+        },
+        lambda result: {"evaluated_pair_count": 1158},
+        lambda result: {"feasible_pair_count": 0},
+        lambda result: {"recall": result.recall_floor - 2e-12},
+        lambda result: {"fpr": result.fpr_ceiling + 2e-12},
+        lambda result: {"coverage": result.coverage_floor - 2e-12},
+        lambda result: {"fall_threshold_grid": result.fall_threshold_grid[:-1]},
+        lambda result: {
+            "reliability_threshold_grid": result.reliability_threshold_grid[:-1]
+        },
+        lambda result: {"grid_iteration_order": tuple(reversed(result.grid_iteration_order))},
+        lambda result: {"grid_iteration_order": (object(), object())},
+        lambda result: {"metric_scope": "arbitrary"},
+        lambda result: {"metric_scope": object()},
+        lambda result: {"zero_coverage_convention": "arbitrary"},
+        lambda result: {"fall_threshold": 0.205},
+        lambda result: {"reliability_threshold": 0.025},
+        lambda result: {"reason": "arbitrary"},
+        lambda result: {"risk_coverage_points": ((0.1, 0.0), (1.0, 0.0))},
+        lambda result: {
+            "risk_coverage_points": ((0.0, 0.0), (0.5, 0.2), (0.5, 0.1), (1.0, 0.1))
+        },
+        lambda result: {
+            "risk_coverage_points": ((0.0, 0.0), (0.5, math.nan), (1.0, 0.0))
+        },
+        lambda result: {
+            "risk_coverage_points": ((0.0, 0.0), (0.5, 1.1), (1.0, 0.0))
+        },
+        lambda result: {
+            "risk_coverage_points": result.risk_coverage_points[:-1]
+        },
+        lambda result: {"aurc": min(1.0, result.aurc + 0.01)},
+        lambda result: {"calibration_reason": object()},
+    ],
+)
+def test_selective_threshold_rejects_inconsistent_or_non_json_audit_state(mutation):
+    result = _valid_result()
+    with pytest.raises(ValueError):
+        replace(result, **mutation(result))
+
+
+def test_selective_threshold_detaches_and_normalizes_nested_lists():
+    result = _valid_result()
+    constraints = [list(item) for item in result.evaluated_constraints]
+    fall_grid = list(result.fall_threshold_grid)
+    reliability_grid = list(result.reliability_threshold_grid)
+    grid_order = list(result.grid_iteration_order)
+    risk_points = [list(item) for item in result.risk_coverage_points]
+
+    detached = replace(
+        result,
+        evaluated_constraints=constraints,
+        fall_threshold_grid=fall_grid,
+        reliability_threshold_grid=reliability_grid,
+        grid_iteration_order=grid_order,
+        risk_coverage_points=risk_points,
+    )
+    constraints[0][1] = 0.0
+    fall_grid[0] = 0.0
+    reliability_grid[0] = 1.0
+    grid_order[0] = "changed"
+    risk_points[0][0] = 1.0
+
+    assert detached == result
+    assert type(detached.evaluated_constraints) is tuple
+    assert all(type(item) is tuple for item in detached.evaluated_constraints)
+    assert type(detached.fall_threshold_grid) is tuple
+    assert type(detached.reliability_threshold_grid) is tuple
+    assert type(detached.grid_iteration_order) is tuple
+    assert type(detached.risk_coverage_points) is tuple
+    assert all(type(item) is tuple for item in detached.risk_coverage_points)
+    json.dumps(asdict(detached), allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"coverage": 0.1},
+        {"recall": 0.1},
+        {"f1": 0.1},
+        {"fpr": 0.0},
+        {"aurc": 0.0},
+        {"subject_macro_f1": 0.1},
+        {"worst_subject_f1": 0.1},
+        {"feasible_pair_count": 1},
+        {"reason": "arbitrary"},
+        {"risk_coverage_points": ((0.0, 0.0), (1.0, 0.0))},
+    ],
+)
+def test_infeasible_result_rejects_nonconservative_sentinels(mutation):
+    result = select_oof_thresholds(
+        [OOFRecord("s1", 1, -3.0, 0.1), OOFRecord("s2", 0, 3.0, 0.9)],
+        recall_floor=1.0,
+        fpr_ceiling=0.0,
+        coverage_floor=1.0,
+    )
+
+    with pytest.raises(ValueError):
+        replace(result, **mutation)
 
 
 def test_selection_is_repeatable_and_independent_of_input_order():

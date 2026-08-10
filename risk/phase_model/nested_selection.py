@@ -5,6 +5,9 @@ The selector calibrates the canonical OOF logits once, evaluates the fixed
 Reliability only decides whether a record is selected; it never rescales the
 calibrated fall probability.
 
+All feasibility comparisons share a ``1e-12`` absolute tolerance so a single
+floating-point rounding step cannot flip a boundary decision.
+
 Binary recall, F1, and false-positive rate are overall metrics on selected
 records. An absent selected positive denominator gives recall 0, an absent F1
 denominator gives F1 0, and an absent selected negative denominator gives the
@@ -45,6 +48,10 @@ _GRID_ITERATION_ORDER = (
     "fall_threshold_ascending",
     "reliability_threshold_ascending",
 )
+_FEASIBILITY_EPSILON = 1e-12
+_FALL_THRESHOLD_GRID = tuple(index / 100 for index in range(20, 81))
+_RELIABILITY_THRESHOLD_GRID = tuple(index / 20 for index in range(19))
+_EVALUATED_PAIR_COUNT = 1159
 
 
 def _finite_float(value: object, message: str) -> float:
@@ -56,7 +63,105 @@ def _finite_float(value: object, message: str) -> float:
         raise ValueError(message) from exc
     if not math.isfinite(normalized):
         raise ValueError(message)
+    return 0.0 if normalized == 0.0 else normalized
+
+
+def _probability(value: object, name: str) -> float:
+    message = f"{name} must be finite and in [0, 1]"
+    normalized = _finite_float(value, message)
+    if not 0.0 <= normalized <= 1.0:
+        raise ValueError(message)
     return normalized
+
+
+def _pair_sequence(value: object, name: str) -> tuple[tuple[object, object], ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be a sequence of pairs")
+    pairs = []
+    for item in value:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ValueError(f"{name} must be a sequence of pairs")
+        pairs.append((item[0], item[1]))
+    return tuple(pairs)
+
+
+def _normalized_constraints(
+    value: object,
+) -> tuple[tuple[str, float], ...]:
+    pairs = _pair_sequence(value, "evaluated_constraints")
+    normalized = []
+    for name, raw_value in pairs:
+        if type(name) is not str:
+            raise ValueError("evaluated constraint names must be strings")
+        normalized.append((name, _probability(raw_value, name)))
+    return tuple(normalized)
+
+
+def _normalized_grid(value: object, name: str) -> tuple[float, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{name} must be a sequence")
+    return tuple(_probability(item, name) for item in value)
+
+
+def _normalized_string_pair(value: object, name: str) -> tuple[str, str]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError(f"{name} must contain exactly two strings")
+    if any(type(item) is not str for item in value):
+        raise ValueError(f"{name} must contain exactly two strings")
+    return value[0], value[1]
+
+
+def _normalized_risk_points(value: object) -> tuple[tuple[float, float], ...]:
+    pairs = _pair_sequence(value, "risk_coverage_points")
+    return tuple(
+        (
+            _probability(coverage, "risk coverage"),
+            _probability(risk, "risk"),
+        )
+        for coverage, risk in pairs
+    )
+
+
+def _trapezoidal_area(points: Sequence[tuple[float, float]]) -> float:
+    return sum(
+        (right_coverage - left_coverage) * (left_risk + right_risk) / 2.0
+        for (left_coverage, left_risk), (right_coverage, right_risk) in zip(
+            points, points[1:]
+        )
+    )
+
+
+def _constraints_satisfied(
+    recall: float,
+    fpr: float,
+    coverage: float,
+    recall_floor: float,
+    fpr_ceiling: float,
+    coverage_floor: float,
+) -> bool:
+    """Apply every feasibility boundary with one shared numerical tolerance."""
+    return not (
+        recall + _FEASIBILITY_EPSILON < recall_floor
+        or fpr > fpr_ceiling + _FEASIBILITY_EPSILON
+        or coverage + _FEASIBILITY_EPSILON < coverage_floor
+    )
+
+
+def _rank_key(
+    subject_macro_f1: float,
+    worst_subject_f1: float,
+    fpr: float,
+    coverage: float,
+    fall_threshold: float,
+) -> tuple[float, float, float, float, float]:
+    """Return the binding five-component feasible-pair rank, unchanged."""
+    return (
+        subject_macro_f1,
+        worst_subject_f1,
+        -fpr,
+        coverage,
+        -fall_threshold,
+    )
 
 
 @dataclass(frozen=True)
@@ -139,14 +244,9 @@ class SelectiveThreshold:
             "fpr_ceiling",
             "coverage_floor",
         )
-        normalized_probabilities = []
-        for name in probability_fields:
-            value = _finite_float(
-                getattr(self, name), f"{name} must be finite and in [0, 1]"
-            )
-            if not 0.0 <= value <= 1.0:
-                raise ValueError(f"{name} must be finite and in [0, 1]")
-            normalized_probabilities.append(value)
+        normalized_probabilities = [
+            _probability(getattr(self, name), name) for name in probability_fields
+        ]
 
         temperature = _finite_float(
             self.temperature, "temperature must be finite and in [0.5, 5.0]"
@@ -154,57 +254,23 @@ class SelectiveThreshold:
         if not 0.5 <= temperature <= 5.0:
             raise ValueError("temperature must be finite and in [0.5, 5.0]")
 
-        thresholds = []
+        thresholds: list[float | None] = []
         for name in ("fall_threshold", "reliability_threshold"):
             raw_value = getattr(self, name)
             if raw_value is None:
                 thresholds.append(None)
                 continue
-            value = _finite_float(raw_value, f"{name} must be finite and in [0, 1]")
-            if not 0.0 <= value <= 1.0:
-                raise ValueError(f"{name} must be finite and in [0, 1]")
-            thresholds.append(value)
+            thresholds.append(_probability(raw_value, name))
 
-        if type(self.feasible) is not bool:
-            raise ValueError("feasible must be a boolean")
-        if self.feasible and any(value is None for value in thresholds):
-            raise ValueError("feasible results require both thresholds")
-        if not self.feasible and any(value is not None for value in thresholds):
-            raise ValueError("infeasible results cannot contain chosen thresholds")
-        if not isinstance(self.reason, str) or not self.reason:
-            raise ValueError("reason must be a non-empty string")
-        if type(self.calibration_enabled) is not bool:
-            raise ValueError("calibration_enabled must be a boolean")
-        if not isinstance(self.calibration_reason, str) or not self.calibration_reason:
-            raise ValueError("calibration_reason must be a non-empty string")
-        if (
-            not isinstance(self.split_hash, str)
-            or len(self.split_hash) != 64
-            or any(character not in "0123456789abcdef" for character in self.split_hash)
-        ):
-            raise ValueError("split_hash must be a lowercase SHA-256 hex digest")
-        if (
-            type(self.evaluated_pair_count) is not int
-            or self.evaluated_pair_count < 0
-        ):
-            raise ValueError("evaluated_pair_count must be a non-negative integer")
-        if (
-            type(self.feasible_pair_count) is not int
-            or not 0 <= self.feasible_pair_count <= self.evaluated_pair_count
-        ):
-            raise ValueError("feasible_pair_count must be within evaluated pairs")
-
-        evaluated_constraints = tuple(
-            (str(name), float(value)) for name, value in self.evaluated_constraints
+        evaluated_constraints = _normalized_constraints(self.evaluated_constraints)
+        fall_grid = _normalized_grid(self.fall_threshold_grid, "fall_threshold_grid")
+        reliability_grid = _normalized_grid(
+            self.reliability_threshold_grid, "reliability_threshold_grid"
         )
-        fall_grid = tuple(float(value) for value in self.fall_threshold_grid)
-        reliability_grid = tuple(
-            float(value) for value in self.reliability_threshold_grid
+        grid_iteration_order = _normalized_string_pair(
+            self.grid_iteration_order, "grid_iteration_order"
         )
-        risk_points = tuple(
-            (float(coverage), float(risk))
-            for coverage, risk in self.risk_coverage_points
-        )
+        risk_points = _normalized_risk_points(self.risk_coverage_points)
 
         object.__setattr__(self, "temperature", temperature)
         object.__setattr__(self, "fall_threshold", thresholds[0])
@@ -214,16 +280,123 @@ class SelectiveThreshold:
         object.__setattr__(self, "evaluated_constraints", evaluated_constraints)
         object.__setattr__(self, "fall_threshold_grid", fall_grid)
         object.__setattr__(self, "reliability_threshold_grid", reliability_grid)
-        object.__setattr__(self, "grid_iteration_order", tuple(self.grid_iteration_order))
+        object.__setattr__(self, "grid_iteration_order", grid_iteration_order)
         object.__setattr__(self, "risk_coverage_points", risk_points)
+
+        _validate_selective_threshold(self)
+
+
+def _validate_selective_threshold(result: SelectiveThreshold) -> None:
+    if type(result.feasible) is not bool:
+        raise ValueError("feasible must be a boolean")
+    if type(result.calibration_enabled) is not bool:
+        raise ValueError("calibration_enabled must be a boolean")
+    if type(result.calibration_reason) is not str or not result.calibration_reason:
+        raise ValueError("calibration_reason must be a non-empty string")
+    if (
+        type(result.split_hash) is not str
+        or len(result.split_hash) != 64
+        or any(
+            character not in "0123456789abcdef" for character in result.split_hash
+        )
+    ):
+        raise ValueError("split_hash must be a lowercase SHA-256 hex digest")
+
+    expected_constraints = (
+        ("recall_floor", result.recall_floor),
+        ("fpr_ceiling", result.fpr_ceiling),
+        ("coverage_floor", result.coverage_floor),
+    )
+    if result.evaluated_constraints != expected_constraints:
+        raise ValueError("evaluated_constraints must exactly match configured constraints")
+    if result.fall_threshold_grid != _FALL_THRESHOLD_GRID:
+        raise ValueError("fall_threshold_grid must be the fixed 61-point grid")
+    if result.reliability_threshold_grid != _RELIABILITY_THRESHOLD_GRID:
+        raise ValueError("reliability_threshold_grid must be the fixed 19-point grid")
+    if result.grid_iteration_order != _GRID_ITERATION_ORDER:
+        raise ValueError("grid_iteration_order must match the fixed iteration order")
+    if type(result.metric_scope) is not str or result.metric_scope != _METRIC_SCOPE:
+        raise ValueError("metric_scope must match the selected-record convention")
+    if (
+        type(result.zero_coverage_convention) is not str
+        or result.zero_coverage_convention != _ZERO_COVERAGE_CONVENTION
+    ):
+        raise ValueError("zero_coverage_convention must match the empty-prefix rule")
+    if (
+        type(result.evaluated_pair_count) is not int
+        or result.evaluated_pair_count != _EVALUATED_PAIR_COUNT
+    ):
+        raise ValueError("evaluated_pair_count must equal 1159")
+    if (
+        type(result.feasible_pair_count) is not int
+        or not 0 <= result.feasible_pair_count <= result.evaluated_pair_count
+    ):
+        raise ValueError("feasible_pair_count must be within evaluated pairs")
+    if result.worst_subject_f1 > result.subject_macro_f1 + _FEASIBILITY_EPSILON:
+        raise ValueError("worst_subject_f1 cannot exceed subject_macro_f1")
+
+    if result.feasible:
+        _validate_feasible_result(result)
+    else:
+        _validate_infeasible_result(result)
+
+
+def _validate_feasible_result(result: SelectiveThreshold) -> None:
+    if result.feasible_pair_count == 0:
+        raise ValueError("feasible results require at least one feasible pair")
+    if type(result.reason) is not str or result.reason != _FEASIBLE_REASON:
+        raise ValueError("feasible result reason is invalid")
+    if result.fall_threshold not in _FALL_THRESHOLD_GRID:
+        raise ValueError("fall_threshold must be a fixed grid member")
+    if result.reliability_threshold not in _RELIABILITY_THRESHOLD_GRID:
+        raise ValueError("reliability_threshold must be a fixed grid member")
+    if not _constraints_satisfied(
+        result.recall,
+        result.fpr,
+        result.coverage,
+        result.recall_floor,
+        result.fpr_ceiling,
+        result.coverage_floor,
+    ):
+        raise ValueError("feasible metrics do not satisfy configured constraints")
+
+    points = result.risk_coverage_points
+    if len(points) < 2 or points[0] != (0.0, 0.0) or points[-1][0] != 1.0:
+        raise ValueError("feasible risk curve must run from (0, 0) to coverage 1")
+    if any(
+        right_coverage <= left_coverage
+        for (left_coverage, _), (right_coverage, _) in zip(points, points[1:])
+    ):
+        raise ValueError("risk curve coverage must be strictly increasing")
+    if abs(_trapezoidal_area(points) - result.aurc) > _FEASIBILITY_EPSILON:
+        raise ValueError("aurc must equal the trapezoidal risk-coverage area")
+
+
+def _validate_infeasible_result(result: SelectiveThreshold) -> None:
+    expected_sentinels = (
+        result.fall_threshold is None,
+        result.reliability_threshold is None,
+        result.coverage == 0.0,
+        result.recall == 0.0,
+        result.f1 == 0.0,
+        result.fpr == 1.0,
+        result.aurc == 1.0,
+        result.subject_macro_f1 == 0.0,
+        result.worst_subject_f1 == 0.0,
+        result.feasible_pair_count == 0,
+        type(result.reason) is str and result.reason == _NO_FEASIBLE_REASON,
+        result.risk_coverage_points == (),
+    )
+    if not all(expected_sentinels):
+        raise ValueError("infeasible result sentinels are inconsistent")
 
 
 def _fall_thresholds() -> tuple[float, ...]:
-    return tuple(index / 100 for index in range(20, 81))
+    return _FALL_THRESHOLD_GRID
 
 
 def _reliability_thresholds() -> tuple[float, ...]:
-    return tuple(index / 20 for index in range(19))
+    return _RELIABILITY_THRESHOLD_GRID
 
 
 def _canonical_records(records: Sequence[OOFRecord]) -> tuple[OOFRecord, ...]:
@@ -273,11 +446,7 @@ def _split_hash(records: Sequence[OOFRecord]) -> str:
 
 
 def _constraint(value: object, name: str) -> float:
-    message = f"{name} must be finite and in [0, 1]"
-    normalized = _finite_float(value, message)
-    if not 0.0 <= normalized <= 1.0:
-        raise ValueError(message)
-    return normalized
+    return _probability(value, name)
 
 
 def _binary_metrics(
@@ -351,12 +520,8 @@ def _risk_coverage_curve(
         errors += int(prediction != record.label)
         points.append((prefix_size / total, errors / prefix_size))
 
-    aurc = 0.0
-    for (left_coverage, left_risk), (right_coverage, right_risk) in zip(
-        points, points[1:]
-    ):
-        aurc += (right_coverage - left_coverage) * (left_risk + right_risk) / 2.0
-    return tuple(points), aurc
+    immutable_points = tuple(points)
+    return immutable_points, _trapezoidal_area(immutable_points)
 
 
 def _result(
@@ -441,7 +606,7 @@ def select_oof_thresholds(
 
     fall_grid = _fall_thresholds()
     reliability_grid = _reliability_thresholds()
-    evaluated_pair_count = len(fall_grid) * len(reliability_grid)
+    evaluated_pair_count = 0
     feasible_pair_count = 0
     best_rank: tuple[float, float, float, float, float] | None = None
     best_values: (
@@ -452,6 +617,7 @@ def select_oof_thresholds(
     # The fixed nested-loop order therefore resolves such ties deterministically.
     for fall_threshold in fall_grid:
         for reliability_threshold in reliability_grid:
+            evaluated_pair_count += 1
             selected_indices = tuple(
                 index
                 for index, record in enumerate(canonical_records)
@@ -472,20 +638,23 @@ def select_oof_thresholds(
                 canonical_records, selected_indices, selected_predictions
             )
 
-            if (
-                recall < normalized_recall_floor
-                or fpr > normalized_fpr_ceiling
-                or coverage < normalized_coverage_floor
+            if not _constraints_satisfied(
+                recall,
+                fpr,
+                coverage,
+                normalized_recall_floor,
+                normalized_fpr_ceiling,
+                normalized_coverage_floor,
             ):
                 continue
 
             feasible_pair_count += 1
-            rank = (
+            rank = _rank_key(
                 subject_macro_f1,
                 worst_subject_f1,
-                -fpr,
+                fpr,
                 coverage,
-                -fall_threshold,
+                fall_threshold,
             )
             if best_rank is None or rank > best_rank:
                 best_rank = rank
