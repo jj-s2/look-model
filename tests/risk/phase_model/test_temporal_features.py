@@ -33,6 +33,19 @@ def test_missing_joint_is_explicit_and_does_not_create_velocity_spike():
     assert result.values[1, velocity_offset : velocity_offset + 2].tolist() == [0.0, 0.0]
 
 
+@pytest.mark.parametrize("missing_joint", range(17))
+def test_each_joint_missing_flag_uses_its_exact_interleaved_base_offset(missing_joint):
+    """Break caught: any two per-joint missing columns are swapped in the base ABI."""
+    pose = _pose(frames=1)
+    pose[0, missing_joint] = 0.0
+
+    result = build_temporal_features(pose)
+
+    for joint in range(17):
+        expected = 1.0 if joint == missing_joint else 0.0
+        assert result.values[0, 4 * joint + 3] == expected
+
+
 def test_temporal_feature_columns_follow_the_full_112_value_contract():
     pose = np.array([
         [

@@ -27,6 +27,21 @@ def test_clean_corruption_preserves_pose_and_full_reliability():
     assert result.reliability_target.tolist() == [1.0] * 4
 
 
+def test_time_jitter_keeps_unobservable_first_frame_neutral():
+    """Break caught: first-frame jitter lowers reliability without changing dt[0]."""
+    pose = np.ones((8, 17, 3), dtype=np.float32)
+
+    result = corrupt_pose(pose, np.random.default_rng(7), severity=1.0, corruption="time_jitter")
+    repeated = corrupt_pose(pose, np.random.default_rng(7), severity=1.0, corruption="time_jitter")
+
+    assert result.timestamp_scale[0] == 1.0
+    assert result.reliability_target[0] == 1.0
+    assert not np.allclose(result.timestamp_scale[1:], 1.0)
+    assert np.any(result.reliability_target[1:] < 1.0)
+    np.testing.assert_array_equal(result.timestamp_scale[1:], repeated.timestamp_scale[1:])
+    np.testing.assert_array_equal(result.reliability_target[1:], repeated.reliability_target[1:])
+
+
 def test_dataset_corrupts_before_building_features_and_records_metadata(tmp_path):
     """Break caught: corruptions are skipped, post-feature, or absent from artifacts."""
     pose = np.ones((64, 17, 3), dtype=np.float32)
@@ -89,6 +104,8 @@ def test_time_jitter_changes_temporal_dt_without_reordering_frames(tmp_path):
     assert dt[0] == 0.0
     assert np.all(dt[1:] > 0.0)
     assert not np.allclose(dt[1:], 1.0)
+    assert sample.reliability_target[0] == 1.0
+    assert np.any(sample.reliability_target[1:] < 1.0)
 
 
 def test_clean_dataset_reliability_is_full_even_when_pose_is_invalid(tmp_path):

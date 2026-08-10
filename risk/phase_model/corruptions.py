@@ -58,6 +58,8 @@ def corrupt_pose(
         affected.fill(severity)
     else:
         timestamp_scale = np.clip(rng.normal(1.0, 0.1 * severity, frames), 0.5, 1.5).astype(np.float32)
+        # The first scale shifts absolute time only; temporal dt[0] is always zero.
+        timestamp_scale[0] = 1.0
         affected = np.clip(np.abs(timestamp_scale - 1.0) / 0.1, 0.0, 1.0)
     reliability = np.clip(1.0 - severity * affected, 0.0, 1.0).astype(np.float32)
     return CorruptedPose(changed, reliability, corruption, severity, timestamp_scale)
