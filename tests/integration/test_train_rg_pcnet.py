@@ -161,13 +161,12 @@ def test_same_seed_cpu_runs_produce_the_same_checkpoint_hash(tmp_path):
 
 
 def test_existing_output_is_rejected_before_reading_training_inputs(tmp_path):
-    lock, split, config = _write_fixture(tmp_path)
     output = tmp_path / "release"
     output.mkdir()
     sentinel = output / "sentinel.txt"
     sentinel.write_text("keep", encoding="utf-8")
     with pytest.raises(FileExistsError, match="already exists"):
-        rg_training.train_rg_pcnet(dataset_lock=lock, split_manifest=split, data_root=tmp_path, output_dir=output, release_id="r1", config_path=config, device="cpu")
+        rg_training.train_rg_pcnet(dataset_lock=tmp_path / "missing-lock.json", split_manifest=tmp_path / "missing-split.json", data_root=tmp_path, output_dir=output, release_id="r1", config_path=tmp_path / "missing-config.py", device="cpu")
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 

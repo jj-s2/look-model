@@ -71,7 +71,6 @@ def _provenance():
         (lambda lock, split: split["partitions"].update(train=["",]), "invalid or duplicate"),
         (lambda lock, split: split["partitions"].update(train=["a", "a"]), "invalid or duplicate"),
         (lambda lock, split: split["partitions"].update(train=["missing"]), "missing from"),
-        (lambda lock, split: split.update(release_id="other"), "release_id"),
     ],
 )
 def test_provenance_schema_rejects_each_invalid_contract_independently(mutate, message):
@@ -90,6 +89,7 @@ def test_provenance_schema_rejects_each_invalid_contract_independently(mutate, m
         (_provenance()[0], {**_provenance()[1], "schema_version": "2.0"}, "split manifest schema_version must be '1.0'"),
         ({**_provenance()[0], "clips": None}, _provenance()[1], "dataset lock clips must be a list"),
         (_provenance()[0], {**_provenance()[1], "partitions": None}, "split manifest partitions must be a mapping"),
+        (_provenance()[0], {**_provenance()[1], "release_id": "other"}, "split_manifest release_id does not match"),
     ],
 )
 def test_provenance_top_level_errors_have_exact_messages(lock, split, expected):
