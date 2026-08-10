@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -29,6 +30,9 @@ _DEFAULT_COVERAGE_FLOOR = 0.5
 _DEFAULT_CONFIRM_SECONDS = 0.8
 _DEFAULT_RECOVERY_SECONDS = 2.0
 _DEFAULT_COOLDOWN_SECONDS = 10.0
+_INFEASIBLE_TEMPERATURE = 5.0
+_INFEASIBLE_FALL_THRESHOLD = 1.0
+_INFEASIBLE_RELIABILITY_THRESHOLD = 1.0
 
 
 def _reject_json_constant(value: str) -> None:
@@ -68,7 +72,10 @@ def _record_from_mapping(payload: Mapping[str, Any], *, path: Path, line_number:
         reliability = payload["reliability"]
         if logit is None:
             raise KeyError("fall_logit")
-        return OOFRecord(subject, label, logit, reliability)
+        record = OOFRecord(subject, label, logit, reliability)
+        # Subject identity is a split boundary; normalize surrounding
+        # whitespace before leakage checks, sorting, and artifact emission.
+        return OOFRecord(record.subject_id.strip(), record.label, record.fall_logit, record.reliability)
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         raise ValueError(f"invalid prediction record at {path}:{line_number}") from exc
 
@@ -192,6 +199,71 @@ def _outer_subject_value(subjects: Sequence[str]) -> str | list[str]:
     return unique
 
 
+def _canonical_record_payload(record: OOFRecord) -> dict[str, Any]:
+    """Return the normalized, alias-independent prediction record."""
+
+    return {
+        "subject_id": record.subject_id,
+        "label": record.label,
+        "fall_logit": record.fall_logit,
+        "reliability": record.reliability,
+    }
+
+
+def _record_sort_key(pair: tuple[OOFRecord, Mapping[str, Any]]) -> tuple[Any, ...]:
+    record, _ = pair
+    return (
+        record.subject_id,
+        record.label,
+        record.fall_logit,
+        record.reliability,
+    )
+
+
+def _publish_artifacts(
+    destination: Path,
+    writer: Any,
+) -> None:
+    """Publish a complete artifact directory without deleting old targets on failure."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging: Path | None = Path(tempfile.mkdtemp(prefix=f".{destination.name}.staging-", dir=destination.parent))
+    backup: Path | None = None
+    destination_moved = False
+    try:
+        assert staging is not None
+        writer(staging)
+        if destination.exists():
+            if not destination.is_dir():
+                raise ValueError(f"output path must be a directory: {destination}")
+            backup = Path(tempfile.mkdtemp(prefix=f".{destination.name}.backup-", dir=destination.parent))
+            backup.rmdir()
+            os.replace(destination, backup)
+            destination_moved = True
+        os.replace(staging, destination)
+        staging = None
+        if backup is not None:
+            shutil.rmtree(backup)
+            backup = None
+    except Exception:
+        if destination_moved and backup is not None and backup.exists():
+            if destination.exists():
+                shutil.rmtree(destination)
+            os.replace(backup, destination)
+            backup = None
+        raise
+    finally:
+        if staging is not None and staging.exists():
+            shutil.rmtree(staging)
+        if backup is not None and backup.exists():
+            if destination_moved:
+                # A failed restore must never remove the original backup.
+                # Leave it in place for manual recovery rather than deleting it.
+                pass
+            else:
+                shutil.rmtree(backup)
+
+
 def evaluate_rg_pcnet_loso(
     inner_oof_path: os.PathLike[str] | str,
     outer_predictions_path: os.PathLike[str] | str,
@@ -211,8 +283,8 @@ def evaluate_rg_pcnet_loso(
 ) -> dict[str, Any]:
     """Evaluate one outer fold using thresholds fit only on inner OOF records."""
 
-    inner_pairs = _read_jsonl(inner_oof_path)
-    outer_pairs = _read_jsonl(outer_predictions_path)
+    inner_pairs = tuple(sorted(_read_jsonl(inner_oof_path), key=_record_sort_key))
+    outer_pairs = tuple(sorted(_read_jsonl(outer_predictions_path), key=_record_sort_key))
     inner_records = tuple(record for record, _ in inner_pairs)
     outer_records = tuple(record for record, _ in outer_pairs)
     calibration_subjects = sorted({record.subject_id for record in inner_records})
@@ -223,8 +295,7 @@ def evaluate_rg_pcnet_loso(
     if outer_subject is not None and outer_subject not in outer_subjects:
         raise ValueError("outer_subject does not match outer prediction records")
 
-    inner_manifest = [record for record in (payload for _, payload in inner_pairs)]
-    outer_manifest = [record for record in (payload for _, payload in outer_pairs)]
+    inner_manifest = [_canonical_record_payload(record) for record, _ in inner_pairs]
     inner_bytes = _canonical_bytes(inner_manifest)
     split_fallback = _canonical_bytes({"calibration_subjects": calibration_subjects, "outer_subjects": outer_subjects})
     selection = select_oof_thresholds(
@@ -267,9 +338,13 @@ def evaluate_rg_pcnet_loso(
             "model_sha256": model_hash,
             "dataset_sha256": dataset_hash,
             "split_sha256": split_hash,
-            "temperature": selection.temperature,
-            "fall_threshold": None,
-            "reliability_threshold": None,
+            # A disabled, non-promotable sentinel that still satisfies the
+            # strict release schema.  promotion_checks.selection_feasible and
+            # promoted remain false, so this can never be mistaken for a
+            # runnable release.
+            "temperature": _INFEASIBLE_TEMPERATURE,
+            "fall_threshold": _INFEASIBLE_FALL_THRESHOLD,
+            "reliability_threshold": _INFEASIBLE_RELIABILITY_THRESHOLD,
             "confirm_seconds": confirm_seconds,
             "recovery_seconds": recovery_seconds,
             "cooldown_seconds": cooldown_seconds,
@@ -286,7 +361,7 @@ def evaluate_rg_pcnet_loso(
             probability = _sigmoid(record.fall_logit / selection.temperature)
             selected = record.reliability >= selection.reliability_threshold
             decision = int(probability >= selection.fall_threshold) if selected else None
-            row = dict(payload)
+            row = _canonical_record_payload(record)
             row.update({
                 "calibrated_fall_probability": probability,
                 "selected_by_reliability_gate": selected,
@@ -296,8 +371,8 @@ def evaluate_rg_pcnet_loso(
             calibrated_probabilities.append(probability)
             decisions.append(decision)
     else:
-        for _, payload in outer_pairs:
-            row = dict(payload)
+        for record, _ in outer_pairs:
+            row = _canonical_record_payload(record)
             row.update({"calibrated_fall_probability": None, "selected_by_reliability_gate": False, "fall_decision": None})
             outer_rows.append(row)
             calibrated_probabilities.append(float("nan"))
@@ -333,6 +408,7 @@ def evaluate_rg_pcnet_loso(
         "outer_coverage_meets_floor": float(outer_metrics["coverage"]) >= coverage_floor,
         "hashes_available": hash_inputs_valid,
         "continuous_event_evaluation": False,
+        "promoted": False,
     }
     result: dict[str, Any] = {
         "schema_version": "rgpc.loso.evaluation.v1",
@@ -355,28 +431,18 @@ def evaluate_rg_pcnet_loso(
     }
 
     destination = Path(output_dir)
-    written: list[Path] = []
-    try:
-        _write_jsonl(destination / "outer_predictions.jsonl", outer_rows)
-        written.append(destination / "outer_predictions.jsonl")
-        _write_json(destination / "calibration.json", calibration_payload)
-        written.append(destination / "calibration.json")
-        _write_json(destination / "selection.json", selection_payload)
-        written.append(destination / "selection.json")
-        _write_json(destination / "release_config.json", release_config_payload)
-        written.append(destination / "release_config.json")
-        _write_json(destination / "evaluation.json", result)
-        written.append(destination / "evaluation.json")
+
+    def write_staging(staging: Path) -> None:
+        _write_jsonl(staging / "outer_predictions.jsonl", outer_rows)
+        _write_json(staging / "calibration.json", calibration_payload)
+        _write_json(staging / "selection.json", selection_payload)
+        _write_json(staging / "release_config.json", release_config_payload)
+        _write_json(staging / "evaluation.json", result)
         if release_config is not None:
             # Keep the on-disk contract exactly identical to the embedded copy.
-            write_release_config(release_config, destination / "release_config.json")
-    except Exception:
-        for path in written:
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                pass
-        raise
+            write_release_config(release_config, staging / "release_config.json")
+
+    _publish_artifacts(destination, write_staging)
     return result
 
 
