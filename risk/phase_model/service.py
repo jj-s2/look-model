@@ -31,7 +31,7 @@ class PhaseRiskService:
             score = min(observation.scores) if observation.scores else 0.0
             return (SensorEvent(
                 timestamp=timestamp, source=Source.VISION, event_type=EventType.POSE,
-                payload={"tracking_id": tracking_id, "quality_mode": "abstained", "reason": "model_reliability_gate"},
+                payload={"tracking_id": tracking_id, "quality_mode": "abstained"},
                 quality=DataQuality(False, max(0.0, min(1.0, score)), False, "insufficient_window"),
             ),)
         assessment = assess_window_quality(window)
@@ -45,7 +45,7 @@ class PhaseRiskService:
         if output.fall_decision is None:
             return (SensorEvent(
                 timestamp=timestamp, source=Source.VISION, event_type=EventType.POSE,
-                payload={"tracking_id": tracking_id, "quality_mode": "abstained"},
+                payload={"tracking_id": tracking_id, "quality_mode": "abstained", "reason": "model_reliability_gate"},
                 quality=DataQuality(False, min(assessment.score, output.quality_score), False, "model_reliability_gate"),
             ),)
         confidence = min(assessment.score, output.quality_score)

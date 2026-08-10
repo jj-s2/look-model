@@ -42,6 +42,14 @@ def test_phase_output_distinguishes_legacy_decision_from_explicit_abstention():
     assert PhaseModelOutput.from_dict(omitted).fall_decision == 1
 
 
+@pytest.mark.parametrize("value", [True, False, "1", "0", 1.0, 0.0, 1.5])
+def test_phase_output_from_dict_rejects_non_builtin_integer_decisions(value):
+    payload = valid_output(fall_event_prob=0.8).to_dict()
+    payload["fall_decision"] = value
+    with pytest.raises(ValueError, match="invalid phase model output"):
+        PhaseModelOutput.from_dict(payload)
+
+
 @pytest.mark.parametrize("value", [-0.1, 1.1, True])
 def test_probabilities_reject_invalid_values(value):
     with pytest.raises(ValueError):

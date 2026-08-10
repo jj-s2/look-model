@@ -40,6 +40,16 @@ def test_service_low_quality_does_not_confirm_fall():
     assert not any(item.event_type.value == "fall_event" and item.payload.get("confirmed") for item in output)
 
 
+def test_service_insufficient_window_does_not_claim_model_reliability_gate():
+    class EmptyBuffer:
+        def append(self, item):
+            return None
+    service = PhaseRiskService(FixedPredictor(None), EmptyBuffer())
+    event = service.observe(observation())[0]
+    assert event.quality.reason == "insufficient_window"
+    assert event.payload.get("reason") != "model_reliability_gate"
+
+
 def test_service_emits_prefall_warning_after_smoothing():
     output = PhaseModelOutput((0.01, 0.91, 0.02, 0.02, 0.02, 0.02), 0.1, 0.8, 0.1, 0.9, "e1", "m1", phase=Phase.PREFALL_ABNORMAL)
     item = observation()
@@ -66,4 +76,5 @@ def test_service_emits_abstained_pose_without_fall_forecast():
     assert not any(event.event_type is EventType.FALL_FORECAST for event in events)
     pose = next(event for event in events if event.event_type is EventType.POSE)
     assert pose.payload["quality_mode"] == "abstained"
+    assert pose.payload["reason"] == "model_reliability_gate"
     assert pose.quality.reason == "model_reliability_gate"

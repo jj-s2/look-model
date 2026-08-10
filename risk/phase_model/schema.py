@@ -138,7 +138,9 @@ class PhaseModelOutput:
             object.__setattr__(self, "phase", tuple(Phase)[probabilities.index(max(probabilities))])
         if self.fall_decision is _OMITTED_FALL_DECISION:
             object.__setattr__(self, "fall_decision", int(self.fall_event_prob >= 0.3))
-        elif self.fall_decision is not None and self.fall_decision not in (0, 1):
+        elif self.fall_decision is not None and (
+            type(self.fall_decision) is not int or self.fall_decision not in (0, 1)
+        ):
             raise ValueError("fall_decision must be 0, 1, or None")
 
     def to_dict(self) -> dict[str, object]:
@@ -167,9 +169,12 @@ class PhaseModelOutput:
             phase = data.get("phase")
             decision_kwargs = {}
             if "fall_decision" in data:
-                decision_kwargs["fall_decision"] = (
-                    None if data["fall_decision"] is None else int(data["fall_decision"])
-                )
+                raw_decision = data["fall_decision"]
+                if raw_decision is not None and (
+                    type(raw_decision) is not int or raw_decision not in (0, 1)
+                ):
+                    raise ValueError("fall_decision must be 0, 1, or None")
+                decision_kwargs["fall_decision"] = raw_decision
             return cls(
                 phase_probs=tuple(float(value) for value in data["phase_probs"]),  # type: ignore[union-attr]
                 fall_event_prob=data["fall_event_prob"],  # type: ignore[arg-type]
