@@ -10,6 +10,8 @@ from .contracts import (
     WellbeingAssessmentEvent,
 )
 from .pace_behavior import PACEBehaviorConfig, PACEBehaviorModel
+from .safety_gate import SafetyGate, SafetyGateConfig, SafetyGateResult
+from .voluntary_shadow import ShadowAssessment, ShadowModelConfig, VoluntaryShadowModel
 from .interaction_policy import InteractionContext, InteractionDecision, InteractionPolicy
 from .trend import (
     ActivitySummary,
@@ -28,4 +30,6 @@ __all__ = [
     "WellbeingAssessmentEvent",
     "PACEBehaviorConfig",
     "PACEBehaviorModel",
+    "ShadowAssessment", "ShadowModelConfig", "VoluntaryShadowModel",
+    "SafetyGate", "SafetyGateConfig", "SafetyGateResult",
 ]
