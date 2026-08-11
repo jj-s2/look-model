@@ -110,7 +110,19 @@ python -m pytest tests
 
 ## 数据与模型
 
-原始数据、处理后的序列化数据、模型权重、训练检查点和设备凭据不会提交到 Git。协作者应按照 `datasets/README.md`、`models/README.md` 及相关脚本自行准备。
+原始数据、处理后的序列化数据和设备凭据不会提交到 Git。协作者应按照
+`datasets/README.md`、`models/README.md` 及相关脚本自行准备。
+
+为保证比赛演示可复现，以下经过明确边界标记的模型权重随仓库发布：
+
+- 跌倒风险相位模型：`outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt`；
+- EATD 文本心理筛查研究基线：
+  `outputs/releases/eatd-text-screening-research-only/eatd_text_baseline.joblib`。
+
+第二项只用于非诊断性、低频且自愿的研究筛查。其验证 F1 为 0.300、AUC 为
+0.670，未达到可部署标准，始终保持 `promoted=false`；不得据此作医疗诊断、
+自动报警，或对摄像头/日常录音直接推断心理状态。模型指标与哈希见该目录中的
+`metrics.json` 和 `README.md`。
 
 ## 说明
 

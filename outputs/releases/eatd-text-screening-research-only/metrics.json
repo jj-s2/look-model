@@ -1,0 +1,24 @@
+{
+  "train_subjects": 83,
+  "validation_subjects": 79,
+  "train_positive": 19,
+  "validation_positive": 11,
+  "accuracy": 0.46835443037974683,
+  "precision": 0.1836734693877551,
+  "recall": 0.8181818181818182,
+  "f1": 0.3,
+  "roc_auc": 0.6697860962566845,
+  "label_rule": "new_label >= 53 => elevated depression-risk class",
+  "model": "train-only char TF-IDF + balanced logistic regression",
+  "feature_fit_scope": "official_train_partition_only",
+  "threshold_selection_scope": "stratified_train_oof_only",
+  "threshold": 0.23912689936524265,
+  "selected_c": 10.0,
+  "train_oof": {
+    "f1": 0.410958904109589,
+    "precision": 0.2777777777777778,
+    "recall": 0.7894736842105263
+  },
+  "promoted": false,
+  "claim_boundary": "research_screening_only_not_clinical_diagnosis"
+}
