@@ -51,7 +51,11 @@ class InteractionPolicy:
         )
         if context.sustained_change and short_allowed:
             return InteractionDecision("short_checkin", "sustained_change", invite_short_checkin=True)
-        return InteractionDecision(None, "cooldown" if context.sustained_change and not short_allowed else "no_invitation", invite_full_gds=full_allowed)
+        return InteractionDecision(
+            None,
+            "cooldown" if context.sustained_change and not short_allowed else "no_invitation",
+            invite_full_gds=bool(context.sustained_change and full_allowed),
+        )
 
     @staticmethod
     def _timestamp(value: datetime | str) -> datetime:

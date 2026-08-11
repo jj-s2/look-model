@@ -69,10 +69,20 @@ def test_user_initiated_short_checkin_bypasses_invitation_cooldown():
     assert decision.prompt == "short_checkin"
 
 
+def test_cooldown_expiry_without_sustained_change_does_not_invite_full_gds():
+    decision = InteractionPolicy().evaluate(
+        context_at("2026-08-02T10:00:00+08:00", last_full_screening="2026-06-01T10:00:00+08:00")
+    )
+    assert decision.prompt is None
+    assert decision.invite_full_gds is False
+
+
 def test_naive_timestamps_are_rejected_and_timezone_offsets_are_compared_correctly():
     policy = InteractionPolicy()
     import pytest
     with pytest.raises(ValueError, match="timezone-aware"):
         policy.evaluate(InteractionContext(now=datetime(2026, 8, 2, 10)))
     decision = policy.evaluate(context_at("2026-08-02T10:00:00+08:00", last_full_invitation="2026-07-05T02:00:00+00:00"))
-    assert decision.invite_full_gds is True
+    # Cooldown expiry alone must not trigger a burdensome full questionnaire;
+    # a sustained change is required before the policy can invite it.
+    assert decision.invite_full_gds is False
