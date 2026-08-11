@@ -37,3 +37,16 @@ python scripts/select_urfall_threshold.py --fall-predictions F:/datasets/fall_pr
 ## 使用边界
 
 这些指标来自公开数据集的离线实验，不代表萤石摄像头真实场景性能。部署前必须以设备实拍视频做独立验证，并保留人工确认和报警冷却机制。所有 UR Fall 训练产物均为 promoted=false。
+
+## 心理筛查研究基线（EATD）
+
+- 数据：EATD-Corpus 官方划分，83 个训练样本（19 个高风险量表标签）和 79 个验证样本（11 个高风险量表标签）。
+- 训练：仅在官方训练分区拟合中文字符 TF-IDF；通过训练集 5 折分层 OOF 预测选择正类阈值和正则强度，验证分区不参与词表、模型或阈值拟合。
+- 验证：AUC 0.670，F1 0.300，Recall 0.818，Precision 0.184；小样本和类别不平衡导致精确率不足。
+- 结论：仅作为非诊断性、低频自愿筛查的研究证据，固定 `promoted=false`。输出只能提示“建议由家属或专业人员进一步了解”，不得用于自动医疗结论、紧急告警或基于摄像头/日常录音的心理诊断。
+
+可复现命令：
+
+~~~powershell
+python scripts/train_eatd_baseline.py --data F:/datasets/mental_health/EATD-Corpus-ready/EATD-Corpus --out F:/datasets/mental_health/eatd_text_oof_run
+~~~
