@@ -20,7 +20,7 @@ import os
 import time
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator, Optional
 
 import numpy as np
@@ -103,6 +103,15 @@ class InputAdapter(abc.ABC):
                 break
             yield frame
 
+    def timestamp_for_frame(self, wall_clock: datetime) -> datetime:
+        """Return the acquisition time for the most recently returned frame.
+
+        Live inputs do not expose a reliable media timeline, so they retain the
+        caller's wall-clock timestamp. ``LocalVideoAdapter`` overrides this to
+        preserve recorded presentation timestamps during replay.
+        """
+        return wall_clock
+
     # ---- 元信息 ----
     @property
     def is_opened(self) -> bool:
@@ -158,6 +167,11 @@ class LocalVideoAdapter(InputAdapter):
     source: 视频文件路径（mp4/avi/mov 等）
     """
 
+    def __init__(self, source, **kwargs):
+        super().__init__(source, **kwargs)
+        self._timeline_origin: datetime | None = None
+        self._media_position_seconds: float | None = None
+
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
         path = str(self.source)
         if not os.path.isfile(path):
@@ -170,6 +184,23 @@ class LocalVideoAdapter(InputAdapter):
         meta["path"] = os.path.abspath(str(self.source))
         meta["file_size"] = os.path.getsize(meta["path"])
         return meta
+
+    def read_frame(self) -> Optional[np.ndarray]:
+        frame = super().read_frame()
+        if frame is None or self._cap is None:
+            return frame
+        position_ms = float(self._cap.get(_require_cv2().CAP_PROP_POS_MSEC) or 0.0)
+        self._media_position_seconds = max(0.0, position_ms / 1000.0)
+        return frame
+
+    def timestamp_for_frame(self, wall_clock: datetime) -> datetime:
+        """Anchor recorded-video PTS to the first polling wall-clock instant."""
+        position = self._media_position_seconds
+        if position is None:
+            return wall_clock
+        if self._timeline_origin is None:
+            self._timeline_origin = wall_clock - timedelta(seconds=position)
+        return self._timeline_origin + timedelta(seconds=position)
 
 
 class WebcamAdapter(InputAdapter):

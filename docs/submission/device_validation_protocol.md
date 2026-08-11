@@ -11,6 +11,16 @@
 - 输出：指定目录中的 local_alerts.jsonl
 - 当前离线外部实验阈值：UR Fall 候选 0.244；它不能直接替换 PA-DTSF 服务阈值，必须先实拍校准。
 
+## 已完成的离线端到端烟测
+
+2026-08-12 已使用 UR Fall 的录制室内视频完成一次本地端到端烟测：本地视频
+PTS、YOLO11-pose 姿态提取、PA-DTSF 检查点、双时间尺度缓冲和本地告警服务均
+参与执行。最终状态为 `camera_health=healthy`、`source_error_count=0`；该片段未
+产生预测告警，`decision_count=0`，符合“无已确认跌倒时不告警”的安全预期。
+
+录像回放使用媒体时间戳而不是解码速度；短时间尺度允许达到配置覆盖率的真实
+姿态用于质量评估，长时间尺度仍只接受完整且真实的模型输入，不插值、不复制。
+
 ## 安全测试顺序
 
 1. 先使用 30 至 60 秒的已录制室内视频，确认脚本能输出 camera_health、decision_count 和本地日志。
@@ -40,4 +50,3 @@ python scripts/run_live_monitor.py --checkpoint outputs/releases/padtfs-gmdcsa24
 - 所有实拍指标都与公开数据集指标分开报告。
 
 未满足任一条件时，记录失败原因并保持 promoted=false。
-

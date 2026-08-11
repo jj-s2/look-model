@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import time
 
 import numpy as np
 
@@ -37,6 +38,12 @@ class _FakePosePipeline:
             keypoint_scores=[[1.0] * 17],
             payload={},
         )
+
+
+class _SlowPosePipeline(_FakePosePipeline):
+    def process(self, frame, timestamp):
+        time.sleep(.3)
+        return super().process(frame, timestamp)
 
 
 class _FakePredictor:
@@ -93,3 +100,19 @@ def test_live_runner_runs_one_injected_step_and_closes_stream(tmp_path: Path):
     assert stream.closed is True
     assert snapshot.camera_health in {"healthy", "degraded", "offline"}
     assert (tmp_path / "outputs" / "local_alerts.jsonl").exists()
+
+
+def test_live_runner_waits_for_cpu_pose_inference_by_default(tmp_path: Path):
+    checkpoint = tmp_path / "checkpoint.pt"
+    checkpoint.write_bytes(b"test")
+    snapshot = run_monitor(
+        checkpoint=checkpoint,
+        stream=_FakeStream(),
+        pose_pipeline=_SlowPosePipeline(),
+        predictor=_FakePredictor(),
+        output_dir=tmp_path / "outputs",
+        steps=1,
+    )
+
+    assert snapshot.source_errors == ()
+    assert snapshot.events[0].quality.reason == "insufficient_window"

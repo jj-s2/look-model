@@ -57,6 +57,7 @@ def run_monitor(
     device: str = "auto",
     steps: int | None = None,
     smoke_seconds: float = 0.0,
+    poll_timeout_seconds: float = 2.0,
     launch_browser: bool = False,
     clock: Callable[[], datetime] | None = None,
 ) -> ServiceSnapshot:
@@ -72,6 +73,8 @@ def run_monitor(
         raise ValueError("steps must be positive when provided")
     if smoke_seconds < 0:
         raise ValueError("smoke_seconds must be non-negative")
+    if poll_timeout_seconds <= 0:
+        raise ValueError("poll_timeout_seconds must be positive")
 
     now = clock or (lambda: datetime.now(timezone.utc))
     model_predictor = predictor or TorchPhasePredictor(checkpoint, device=device)
@@ -82,7 +85,11 @@ def run_monitor(
     dispatcher.path.parent.mkdir(parents=True, exist_ok=True)
     dispatcher.path.touch(exist_ok=True)
     source = VisionPhaseSource(stream, pose_pipeline, SinglePersonTracker(), phase_service, clock=now)
-    service = LiveMonitoringService((source,), dispatcher=dispatcher, clock=now)
+    service = LiveMonitoringService(
+        (source,), dispatcher=dispatcher, clock=now,
+        poll_timeout_seconds=poll_timeout_seconds,
+        component_timeout_seconds=poll_timeout_seconds,
+    )
     last_snapshot: ServiceSnapshot | None = None
     opened = False
     try:

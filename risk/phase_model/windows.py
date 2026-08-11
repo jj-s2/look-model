@@ -55,14 +55,25 @@ class DualTimescaleBuffer:
         while self._history and self._history[0].timestamp < cutoff:
             self._history.popleft()
         short = self._sample(observation.timestamp, self.short_frames, self.short_fps)
-        long = self._sample(observation.timestamp, self.long_frames, self.long_fps)
+        long = self._sample(
+            observation.timestamp, self.long_frames, self.long_fps,
+            tolerance_fraction=.98,
+        )
         if short is None or long is None:
+            return None
+        # The temporal predictors consume the long branch directly and require
+        # its fixed shape.  The short branch only supplies quality evidence, so
+        # it may retain a covered subset instead of forcing a false abstention
+        # after a transient detector miss.
+        if len(long) != self.long_frames:
             return None
         return DualWindow(short=short, long=long)
 
-    def _sample(self, end: datetime, frames: int, fps: float) -> tuple[PoseObservation, ...] | None:
+    def _sample(
+        self, end: datetime, frames: int, fps: float, *, tolerance_fraction: float = .48,
+    ) -> tuple[PoseObservation, ...] | None:
         interval = timedelta(seconds=1.0 / fps)
-        tolerance = interval * 0.48
+        tolerance = interval * tolerance_fraction
         targets = [end - interval * offset for offset in reversed(range(frames))]
         candidates = list(self._history)
         selected: list[PoseObservation] = []
@@ -80,10 +91,9 @@ class DualTimescaleBuffer:
         if len(selected) < frames * self.min_coverage:
             return None
         selected.sort(key=lambda item: item.timestamp)
-        # A model window must have the requested length; sparse gaps are
-        # rejected above instead of repeating stale observations.
-        if len(selected) != frames:
-            return None
+        # Keep only real observations.  Callers decide which branch needs a
+        # fixed shape; this avoids stale-frame repetition while making the
+        # documented minimum coverage meaningful for quality-only windows.
         return tuple(selected)
 
 

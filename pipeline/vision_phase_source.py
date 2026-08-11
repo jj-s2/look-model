@@ -145,12 +145,13 @@ class VisionPhaseSource:
                 timestamp=now, source=Source.VISION, event_type=EventType.AVAILABILITY,
                 payload={"modality": "vision"}, quality=DataQuality(False, 0.0, False, "frame_unavailable"),
             ),))
-        result = self.pose_pipeline.process(frame, now)
+        frame_timestamp = self._frame_timestamp(now)
+        result = self.pose_pipeline.process(frame, frame_timestamp)
         if not result.bboxes:
             return SourceBatch((SensorEvent(
                 timestamp=now, source=Source.VISION, event_type=EventType.POSE,
                 payload={"no_person": True}, quality=DataQuality(True, 1.0, False, "no_person"),
-            ),), frame=frame, frame_timestamp=now)
+            ),), frame=frame, frame_timestamp=frame_timestamp)
         track_items = self._tracks(result)
         events: list[SensorEvent] = []
         observations = []
@@ -165,7 +166,7 @@ class VisionPhaseSource:
             tracking_id = self._tracking_id(track_items, index)
             width, height = self._frame_size(frame, bbox)
             observation = PoseObservation(
-                timestamp=now, tracking_id=tracking_id, keypoints=points, scores=scores,
+                timestamp=frame_timestamp, tracking_id=tracking_id, keypoints=points, scores=scores,
                 visible_mask=visible, bbox=tuple(float(value) for value in bbox),
                 frame_size=(width, height), stream_fresh=True,
             )
@@ -183,7 +184,18 @@ class VisionPhaseSource:
                 timestamp=now, source=Source.VISION, event_type=EventType.POSE,
                 payload={"no_reliable_pose": True}, quality=DataQuality(False, 0.0, False, "no_reliable_pose"),
             ))
-        return SourceBatch(tuple(events), frame=frame, frame_timestamp=now)
+        return SourceBatch(tuple(events), frame=frame, frame_timestamp=frame_timestamp)
+
+    def _frame_timestamp(self, wall_clock: datetime) -> datetime:
+        resolver = getattr(self.stream, "timestamp_for_frame", None)
+        if not callable(resolver):
+            return wall_clock
+        candidate = resolver(wall_clock)
+        if not isinstance(candidate, datetime):
+            raise TypeError("stream frame timestamp must be a datetime")
+        if candidate.tzinfo is None or candidate.utcoffset() is None:
+            raise ValueError("stream frame timestamp must be timezone-aware")
+        return candidate
 
     def _tracks(self, result: Any) -> Any:
         try:

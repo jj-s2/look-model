@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone
 import subprocess
 import sys
 
 import pytest
 
-from vision.input_adapter import EzvizStreamAdapter
+from vision.input_adapter import EzvizStreamAdapter, LocalVideoAdapter
 
 
 FRAME = object()
@@ -26,6 +27,9 @@ class FakeCapture:
 
     def release(self) -> None:
         self.released = True
+
+    def get(self, _property: int) -> float:
+        return 0.0
 
 
 class RaisingOpenCapture(FakeCapture):
@@ -247,3 +251,25 @@ except RuntimeError as exc:
 
     assert result.returncode == 0, result.stderr
     assert "OpenCV is required" in result.stdout
+
+
+def test_local_video_timestamp_tracks_media_position_not_decode_speed() -> None:
+    class TimestampCapture(FakeCapture):
+        def __init__(self) -> None:
+            super().__init__([(True, FRAME), (True, FRAME)])
+            self.positions = iter((40.0, 540.0))
+
+        def get(self, _property: int) -> float:
+            return next(self.positions)
+
+    adapter = LocalVideoAdapter("fixture.mp4")
+    adapter._cap = TimestampCapture()
+    now = datetime(2026, 8, 12, tzinfo=timezone.utc)
+
+    assert adapter.read_frame() is FRAME
+    first = adapter.timestamp_for_frame(now)
+    assert adapter.read_frame() is FRAME
+    second = adapter.timestamp_for_frame(now + timedelta(milliseconds=1))
+
+    assert first == now
+    assert second == now + timedelta(milliseconds=500)

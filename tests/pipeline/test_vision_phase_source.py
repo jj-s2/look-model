@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 
 from core.events import EventType
@@ -58,6 +58,25 @@ def test_frame_flows_to_pose_and_phase_service():
     assert batch.frame is FRAME
     assert phase.observations
     assert batch.events[0].event_type is EventType.POSE
+
+
+def test_frame_uses_stream_video_timestamp_when_available():
+    """Recorded-video PTS must drive temporal windows instead of decode speed."""
+    phase = FakePhaseService()
+
+    class TimestampedStream(FakeStream):
+        def timestamp_for_frame(self, wall_clock):
+            assert wall_clock == NOW
+            return NOW + timedelta(seconds=0.04)
+
+    source = VisionPhaseSource(
+        TimestampedStream([(True, FRAME)]), FakePosePipeline(), FakeTracker(), phase
+    )
+
+    batch = source.poll(NOW)
+
+    assert phase.observations[0].timestamp == NOW + timedelta(seconds=0.04)
+    assert batch.frame_timestamp == NOW + timedelta(seconds=0.04)
 
 
 def _release(tmp_path):
