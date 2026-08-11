@@ -128,6 +128,12 @@ def _manifest_path(run_dir: Path) -> Path:
     return run_dir / "run_manifest.json"
 
 
+def _canonical_matrix(matrix: Sequence[ExperimentRun]) -> tuple[ExperimentRun, ...]:
+    """Normalize caller-provided run order for deterministic execution/output."""
+
+    return tuple(sorted(matrix, key=lambda run: run.run_id))
+
+
 def _load_manifest(path: Path) -> dict[str, Any]:
     value = _read_json(path)
     if not isinstance(value, dict):
@@ -189,12 +195,16 @@ def _validate_manifest(run: ExperimentRun, manifest: Mapping[str, Any], expected
         raise ValueError(f"input hashes mismatch in {path}")
     if manifest.get("config_sha256") != run.config_sha256:
         raise ValueError(f"config hash mismatch in {path}")
-    if "variant" in manifest and manifest["variant"] != run.variant:
-        raise ValueError(f"variant mismatch in {path}")
-    if "seed" in manifest and manifest["seed"] != run.seed:
-        raise ValueError(f"seed mismatch in {path}")
-    if "outer_subject" in manifest and manifest["outer_subject"] != run.outer_subject:
-        raise ValueError(f"outer subject mismatch in {path}")
+    expected_spec = {
+        "variant": run.variant,
+        "seed": run.seed,
+        "outer_subject": run.outer_subject,
+        "train_datasets": list(run.train_datasets),
+        "held_out_dataset": run.held_out_dataset,
+        "config_overrides": dict(run.config_overrides),
+    }
+    if any(manifest.get(key) != value for key, value in expected_spec.items()):
+        raise ValueError(f"run specification mismatch in {path}")
     result = dict(manifest)
     result["input_hashes"] = input_hashes
     result["metrics"] = _validate_metrics(manifest.get("metrics"), path)
@@ -312,6 +322,7 @@ def _group_summary(items: Sequence[tuple[str, Mapping[str, float]]]) -> dict[str
 def aggregate_matrix_artifacts(matrix: Sequence[ExperimentRun], manifests: Sequence[Mapping[str, Any]], *, input_hashes: Mapping[str, str], resumed_count: int = 0) -> dict[str, Any]:
     """Aggregate validated real artifacts into a traceable machine JSON."""
 
+    matrix = _canonical_matrix(matrix)
     if len(matrix) != len(manifests):
         raise ValueError("matrix and artifact counts differ")
     expected_hashes = _validate_hashes(input_hashes, "input_hashes")
@@ -390,6 +401,7 @@ def run_experiment_matrix(
 ) -> dict[str, Any]:
     """Execute missing runs, resume hash-matching runs, and aggregate results."""
 
+    matrix = _canonical_matrix(matrix)
     if not matrix:
         raise ValueError("experiment matrix must not be empty")
     if input_hashes is not None and input_paths is not None:
