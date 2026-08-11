@@ -15,7 +15,7 @@ import math
 import os
 import shutil
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -33,6 +33,28 @@ _DEFAULT_COOLDOWN_SECONDS = 10.0
 _INFEASIBLE_TEMPERATURE = 5.0
 _INFEASIBLE_FALL_THRESHOLD = 1.0
 _INFEASIBLE_RELIABILITY_THRESHOLD = 1.0
+_SHA256_HEX = frozenset("0123456789abcdef")
+
+
+@dataclass
+class RGPCPromotionArtifacts:
+    """Inputs to the final, cross-artifact RG-PCNet promotion gate.
+
+    The nested summary and continuous gate are intentionally kept as detached
+    JSON-like mappings.  This lets the finalizer consume artifacts produced by
+    separate jobs without re-running either evaluation, while the optional
+    hashes provide an explicit link back to the model and release config.
+    """
+
+    nested_summary: Mapping[str, Any]
+    continuous_gate: Mapping[str, Any]
+    release_config: Mapping[str, Any]
+    baseline_summary: Mapping[str, Any] = field(default_factory=dict)
+    checkpoint_sha256: str | None = None
+    config_sha256: str | None = None
+    output_dir: os.PathLike[str] | str | None = None
+    source_dir: os.PathLike[str] | str | None = None
+    input_hashes: Mapping[str, str] | None = None
 
 
 def _reject_json_constant(value: str) -> None:
@@ -443,6 +465,218 @@ def evaluate_rg_pcnet_loso(
             write_release_config(release_config, staging / "release_config.json")
 
     _publish_artifacts(destination, write_staging)
+    return result
+
+
+# --- final cross-artifact promotion -------------------------------------------------
+
+
+def _object_mapping(value: object, name: str) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    if hasattr(value, "to_dict") and callable(value.to_dict):
+        converted = value.to_dict()
+        if isinstance(converted, Mapping):
+            return converted
+    converted = getattr(value, "__dict__", None)
+    if isinstance(converted, Mapping):
+        return converted
+    raise ValueError(f"{name} must be a mapping")
+
+
+def _candidate_value(candidate: object, names: Sequence[str], default: object = None) -> object:
+    if isinstance(candidate, Mapping):
+        for name in names:
+            if name in candidate:
+                return candidate[name]
+    else:
+        for name in names:
+            if hasattr(candidate, name):
+                return getattr(candidate, name)
+    return default
+
+
+def _first_path(mapping: Mapping[str, Any], paths: Sequence[Sequence[str]], default: object = None) -> object:
+    for path in paths:
+        current: object = mapping
+        for key in path:
+            if not isinstance(current, Mapping) or key not in current:
+                break
+            current = current[key]
+        else:
+            return current
+    return default
+
+
+def _finite_metric(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return numeric if math.isfinite(numeric) else None
+
+
+def _valid_sha256(value: object) -> bool:
+    return type(value) is str and len(value) == 64 and all(character in _SHA256_HEX for character in value)
+
+
+def _metric(mapping: Mapping[str, Any], names: Sequence[str]) -> float | None:
+    return _finite_metric(_first_path(mapping, tuple((name,) for name in names)))
+
+
+def _unique_seeds(value: object) -> set[str]:
+    if isinstance(value, Mapping):
+        value = tuple(value.values())
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return set()
+    seeds: set[str] = set()
+    for item in value:
+        if isinstance(item, Mapping):
+            item = item.get("seed")
+        if item is not None and not isinstance(item, (dict, list, tuple, set)):
+            seeds.add(str(item))
+    return seeds
+
+
+def _promotion_inputs(candidate: object) -> tuple[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], Mapping[str, Any]]:
+    nested_raw = _candidate_value(candidate, ("nested_summary", "nested_loso", "loso_summary"))
+    if nested_raw is None and isinstance(candidate, Mapping) and "selection" in candidate:
+        nested_raw = candidate
+    continuous_raw = _candidate_value(candidate, ("continuous_gate", "promotion_gate"))
+    config_raw = _candidate_value(candidate, ("release_config", "config"))
+    baseline_raw = _candidate_value(candidate, ("baseline_summary", "baseline", "baseline_metrics"), {})
+    if nested_raw is None:
+        raise ValueError("nested LOSO summary is required")
+    if continuous_raw is None:
+        raise ValueError("continuous promotion gate is required")
+    if config_raw is None:
+        nested_mapping = _object_mapping(nested_raw, "nested summary")
+        config_raw = _first_path(nested_mapping, (("release_config",), ("config",)))
+    if config_raw is None:
+        raise ValueError("release config is required")
+    return (_object_mapping(nested_raw, "nested summary"), _object_mapping(continuous_raw, "continuous gate"), _object_mapping(config_raw, "release config"), _object_mapping(baseline_raw, "baseline summary"))
+
+
+def _release_ids(candidate: object, nested: Mapping[str, Any], gate: Mapping[str, Any], config: Mapping[str, Any]) -> str:
+    raw_ids = [
+        _candidate_value(candidate, ("release_id",)),
+        _first_path(nested, (("release_id",), ("release_config", "release_id"))),
+        gate.get("release_id"), config.get("release_id"),
+    ]
+    ids = {str(value).strip() for value in raw_ids if value is not None and str(value).strip()}
+    if len(ids) > 1:
+        raise ValueError("release_id mismatch")
+    if not ids:
+        raise ValueError("release_id is required")
+    return ids.pop()
+
+
+def _hash_checks(candidate: object, gate: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    valid = all(_valid_sha256(config.get(name)) for name in ("model_sha256", "dataset_sha256", "split_sha256"))
+    checkpoint_hash = _candidate_value(candidate, ("checkpoint_sha256", "checkpoint_hash", "model_sha256"))
+    if checkpoint_hash is not None:
+        valid = valid and _valid_sha256(checkpoint_hash) and checkpoint_hash == config.get("model_sha256")
+    gate_inputs = gate.get("input_hashes")
+    declared_inputs = _candidate_value(candidate, ("input_hashes",), None)
+    if gate_inputs is not None:
+        valid = valid and isinstance(gate_inputs, Mapping) and bool(gate_inputs) and all(_valid_sha256(value) for value in gate_inputs.values())
+    if declared_inputs is not None:
+        valid = valid and isinstance(declared_inputs, Mapping)
+        if isinstance(gate_inputs, Mapping):
+            valid = valid and dict(declared_inputs) == dict(gate_inputs)
+        elif isinstance(declared_inputs, Mapping):
+            valid = valid and all(_valid_sha256(value) for value in declared_inputs.values())
+    config_hash = _candidate_value(candidate, ("config_sha256", "release_config_sha256"), None)
+    if config_hash is not None:
+        valid = valid and _valid_sha256(config_hash)
+        if isinstance(gate_inputs, Mapping) and gate_inputs.get("release_config") is not None:
+            valid = valid and config_hash == gate_inputs.get("release_config")
+    output_hashes = gate.get("output_sha256")
+    if output_hashes is not None:
+        valid = valid and isinstance(output_hashes, Mapping) and all(_valid_sha256(value) for value in output_hashes.values())
+    return bool(valid)
+
+
+def finalize_rgpc_release(candidate_artifacts: RGPCPromotionArtifacts | Mapping[str, Any] | object, *, output_dir: os.PathLike[str] | str | None = None, calibration_ece_ceiling: float = 0.10) -> dict[str, Any]:
+    """Apply all nested, continuous, calibration, coverage, and hash gates."""
+    nested, continuous, config, baseline = _promotion_inputs(candidate_artifacts)
+    release_id = _release_ids(candidate_artifacts, nested, continuous, config)
+    aggregate_raw = _first_path(nested, (("aggregate_metrics",), ("outer_metrics",), ("metrics",)))
+    aggregate = _object_mapping(aggregate_raw, "aggregate metrics") if aggregate_raw is not None else nested
+    selection = _object_mapping(nested.get("selection", {}), "selection")
+    calibration = _object_mapping(nested.get("calibration", {}), "calibration")
+    nested_checks = nested.get("promotion_checks") if isinstance(nested.get("promotion_checks"), Mapping) else {}
+    checks: dict[str, bool] = {
+        "selection": nested.get("selection_feasible", selection.get("feasible", nested_checks.get("selection_feasible"))) is True
+    }
+
+    candidate_f1 = _metric(aggregate, ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))
+    baseline_f1 = _metric(baseline, ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))
+    explicit_f1 = _candidate_value(candidate_artifacts, ("macro_event_f1_improved",), None)
+    checks["macro_event_f1"] = bool(explicit_f1) if explicit_f1 is not None else (candidate_f1 is not None and baseline_f1 is not None and candidate_f1 > baseline_f1)
+
+    constraints = continuous.get("constraints") if isinstance(continuous.get("constraints"), Mapping) else {}
+    recall_floor = _finite_metric(_candidate_value(candidate_artifacts, ("recall_floor",), constraints.get("minimum_event_recall")))
+    recall_floor = recall_floor if recall_floor is not None else (_finite_metric(selection.get("recall_floor")) or _DEFAULT_RECALL_FLOOR)
+    candidate_recall = _metric(aggregate, ("event_recall", "recall", "macro_event_recall"))
+    checks["recall"] = candidate_recall is not None and candidate_recall >= recall_floor
+
+    false_ceiling = _finite_metric(_candidate_value(candidate_artifacts, ("maximum_false_alerts_per_hour",), constraints.get("maximum_false_alerts_per_hour")))
+    candidate_false = _metric(aggregate, ("false_alerts_per_hour", "false_alarm_rate"))
+    baseline_false = _metric(baseline, ("false_alerts_per_hour", "false_alarm_rate"))
+    checks["false_alerts_per_hour"] = candidate_false is not None and ((baseline_false is not None and candidate_false <= baseline_false) or (baseline_false is None and false_ceiling is not None and candidate_false <= false_ceiling))
+
+    ece_bound = _finite_metric(_candidate_value(candidate_artifacts, ("calibration_ece_ceiling",), calibration_ece_ceiling))
+    calibration_valid = calibration.get("valid") is True or calibration.get("status") in {"valid", "passed"} or calibration.get("bounded") is True
+    ece = _metric(calibration, ("ece", "expected_calibration_error"))
+    checks["calibration"] = calibration_valid and ece is not None and ece_bound is not None and ece <= ece_bound
+
+    coverage_floor = _finite_metric(_candidate_value(candidate_artifacts, ("minimum_coverage", "coverage_floor"), constraints.get("minimum_coverage")))
+    coverage_floor = coverage_floor if coverage_floor is not None else (_finite_metric(config.get("minimum_coverage")) or _DEFAULT_COVERAGE_FLOOR)
+    candidate_coverage = _metric(aggregate, ("coverage", "selective_coverage"))
+    checks["coverage"] = candidate_coverage is not None and candidate_coverage >= coverage_floor
+
+    candidate_aurc = _metric(aggregate, ("aurc", "risk_coverage_aurc"))
+    baseline_aurc = _metric(baseline, ("aurc", "risk_coverage_aurc"))
+    explicit_aurc = _candidate_value(candidate_artifacts, ("aurc_improved",), None)
+    checks["aurc"] = bool(explicit_aurc) if explicit_aurc is not None else (candidate_aurc is not None and baseline_aurc is not None and candidate_aurc < baseline_aurc)
+
+    seeds = _candidate_value(candidate_artifacts, ("seeds", "seed_results"), nested.get("seeds", nested.get("seed_results")))
+    checks["seeds"] = len(_unique_seeds(seeds)) >= 3
+    continuous_checks = continuous.get("checks")
+    checks["continuous"] = continuous.get("passed") is True and (
+        not isinstance(continuous_checks, Mapping) or all(value is True for value in continuous_checks.values())
+    )
+    checks["hashes"] = _hash_checks(candidate_artifacts, continuous, config)
+    reasons = [name for name, passed in checks.items() if not passed]
+    result: dict[str, Any] = {"schema_version": "rgpc.promotion.v1", "release_id": release_id, "promoted": not reasons, "reasons": reasons, "promotion_checks": checks}
+    if reasons:
+        result["release_dir"] = None
+        return result
+
+    destination_raw = output_dir if output_dir is not None else _candidate_value(candidate_artifacts, ("output_dir", "release_dir"), None)
+    if destination_raw is None:
+        raise ValueError("output_dir is required for a passing release")
+    destination = Path(destination_raw)
+    if destination.name.lower() != "release":
+        destination = destination / "release"
+
+    def write_staging(staging: Path) -> None:
+        source_raw = _candidate_value(candidate_artifacts, ("source_dir",), None)
+        if source_raw is not None and Path(source_raw).is_dir():
+            for source_file in Path(source_raw).iterdir():
+                if source_file.is_file() and source_file.name not in {"promotion_result.json", "promotion_checks.json"}:
+                    shutil.copy2(source_file, staging / source_file.name)
+        _write_json(staging / "release_config.json", dict(config))
+        _write_json(staging / "continuous_promotion_gate.json", dict(continuous))
+        _write_json(staging / "nested_loso_summary.json", dict(nested))
+        _write_json(staging / "promotion_checks.json", checks)
+        _write_json(staging / "promotion_result.json", result)
+
+    _publish_artifacts(destination, write_staging)
+    result["release_dir"] = str(destination)
     return result
 
 
