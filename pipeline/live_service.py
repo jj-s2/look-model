@@ -5,6 +5,7 @@ from __future__ import annotations
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping
 from typing import Any, Callable, Protocol, Sequence
 
 from alerts.dispatcher import AlertDispatcher
@@ -199,7 +200,10 @@ class LiveMonitoringService:
             raise TypeError("source batch must contain sensor events")
         else:
             batch = SourceBatch(tuple(raw_batch))
-        valid_events = tuple(event for event in batch.events if isinstance(event, SensorEvent))
+        valid_events = tuple(
+            event for event in batch.events
+            if isinstance(event, SensorEvent) and isinstance(event.payload, Mapping)
+        )
         invalid_event_count = len(batch.events) - len(valid_events)
         return SourceBatch(valid_events, batch.frame, batch.frame_timestamp), invalid_event_count
 

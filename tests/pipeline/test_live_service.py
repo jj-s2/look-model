@@ -254,3 +254,15 @@ def test_live_service_does_not_dispatch_rgpc_suspected_transition() -> None:
     dispatcher = RecordingDispatcher()
     LiveMonitoringService(dispatcher=dispatcher, clock=lambda: NOW).step(SourceBatch((event,)))
     assert dispatcher.calls == 0
+
+
+def test_live_service_downgrades_non_mapping_payload_without_crashing() -> None:
+    malformed = SensorEvent(
+        timestamp=NOW, source=Source.VISION, event_type=EventType.POSE,
+        payload=None,  # type: ignore[arg-type]
+        quality=DataQuality(True, .9, False),
+    )
+    result = LiveMonitoringService(clock=lambda: NOW).step(SourceBatch((malformed,)))
+    assert result.camera_health == "degraded"
+    assert result.events == ()
+    assert "vision: invalid data" in result.source_errors
