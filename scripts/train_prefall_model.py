@@ -68,10 +68,23 @@ def main() -> int:
     parser.add_argument("--subject-column", default="subject_id")
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--random-seed", type=int, default=42)
+    parser.add_argument("--dataset-summary", help="JSON audit emitted by the real-window dataset builder")
+    parser.add_argument("--leave-one-subject-out", action="store_true",
+                        help="evaluate each subject as a held-out fold")
+    parser.add_argument("--estimator", choices=("logistic_regression", "extra_trees"),
+                        default="logistic_regression")
     parser.add_argument("--synthetic-smoke-test", action="store_true")
     args = parser.parse_args()
     if bool(args.input_csv) == bool(args.synthetic_smoke_test):
         parser.error("provide exactly one of --input-csv or --synthetic-smoke-test")
+    dataset_audit = None
+    if args.dataset_summary:
+        try:
+            dataset_audit = json.loads(Path(args.dataset_summary).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            parser.error(f"cannot read --dataset-summary: {error}")
+        if not isinstance(dataset_audit, dict):
+            parser.error("--dataset-summary must contain a JSON object")
     if args.synthetic_smoke_test:
         features, labels, subject_ids = _synthetic_data()
     else:
@@ -83,19 +96,32 @@ def main() -> int:
         features = data.drop(columns=[args.label_column, args.subject_column])
         labels, subject_ids = data[args.label_column], data[args.subject_column]
     report = evaluate_subject_wise(features, labels, subject_ids, threshold=args.threshold,
-                                   random_seed=args.random_seed)
+                                   random_seed=args.random_seed,
+                                   leave_one_subject_out=args.leave_one_subject_out,
+                                   estimator_name=args.estimator)
     baseline = {"f1": 0.90, "recall": 0.88}
     promoted = should_promote(report.metrics, baseline)
+    promotion_blockers: list[str] = []
+    if dataset_audit is not None:
+        guard_sec = dataset_audit.get("guard_sec")
+        if not isinstance(guard_sec, (int, float)) or isinstance(guard_sec, bool) or guard_sec < 0.5:
+            promotion_blockers.append("guard_sec below 0.5")
+    if promotion_blockers:
+        promoted = False
     provenance = {
         "synthetic": args.synthetic_smoke_test,
         "not_for_clinical_performance": args.synthetic_smoke_test,
         "source": "synthetic-smoke-test" if args.synthetic_smoke_test else str(args.input_csv),
         "fixture": "deterministic-two-feature-v1" if args.synthetic_smoke_test else None,
+        "dataset_audit": dataset_audit,
+        "promotion_blockers": promotion_blockers,
     }
     # Smoke fixtures prove wiring only. They can never become a clinical model.
     if args.synthetic_smoke_test:
         promoted = False
-    model = PrefallModel(random_seed=args.random_seed, threshold=args.threshold).fit(features, labels)
+    model = PrefallModel(
+        random_seed=args.random_seed, threshold=args.threshold, estimator_name=args.estimator,
+    ).fit(features, labels)
     output = Path(args.output_dir)
     output.mkdir(parents=True, exist_ok=True)
     with (output / "prefall_model.pkl").open("wb") as stream:

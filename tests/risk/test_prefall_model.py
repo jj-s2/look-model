@@ -75,3 +75,13 @@ def test_model_fits_real_sklearn_pipeline_and_returns_positive_probabilities():
     assert probabilities.shape == (4,)
     assert all(0.0 <= value <= 1.0 for value in probabilities)
     assert model._estimator.named_steps["classifier"].class_weight == "balanced"
+
+
+def test_model_can_fit_extra_trees_for_non_linear_prefall_features():
+    pytest.importorskip("sklearn")
+    features = SchemaArray([[0.1, 0.2], [0.2, 0.3], [0.8, 0.7], [0.9, 0.8]])
+
+    model = PrefallModel(random_seed=7, estimator_name="extra_trees").fit(features, [0, 0, 1, 1])
+
+    assert model.predict_proba(features).shape == (4,)
+    assert model.metadata()["estimator_name"] == "extra_trees"

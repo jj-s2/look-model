@@ -79,3 +79,92 @@ def test_synthetic_smoke_artifacts_are_never_promoted_or_clinical(tmp_path):
         assert artifact["source"] == "synthetic-smoke-test"
         assert artifact["fixture"]
         assert artifact["promoted"] is False
+
+
+def test_real_training_model_card_records_dataset_window_audit(tmp_path):
+    pytest.importorskip("sklearn")
+    script = Path(__file__).resolve().parents[2] / "scripts" / "train_prefall_model.py"
+    csv_path = tmp_path / "prefall.csv"
+    csv_path.write_text(
+        "subject_id,label,sway,step_width\n"
+        "a,0,0.1,0.2\n"
+        "a,1,0.9,0.8\n"
+        "b,0,0.2,0.1\n"
+        "b,1,0.8,0.9\n",
+        encoding="utf-8",
+    )
+    audit = {"horizon_sec": 3.0, "guard_sec": 0.5, "excluded_no_window": 2}
+    audit_path = tmp_path / "dataset_summary.json"
+    audit_path.write_text(json.dumps(audit), encoding="utf-8")
+
+    subprocess.run(
+        [sys.executable, str(script), "--input-csv", str(csv_path), "--output-dir", str(tmp_path / "run"),
+         "--dataset-summary", str(audit_path)],
+        check=True, capture_output=True, text=True,
+    )
+
+    card = json.loads((tmp_path / "run" / "model_card.json").read_text(encoding="utf-8"))
+    assert card["dataset_audit"] == audit
+
+
+def test_real_training_can_use_leave_one_subject_out(tmp_path):
+    pytest.importorskip("sklearn")
+    script = Path(__file__).resolve().parents[2] / "scripts" / "train_prefall_model.py"
+    csv_path = tmp_path / "prefall.csv"
+    csv_path.write_text(
+        "subject_id,label,sway,step_width\n"
+        "a,0,0.1,0.2\n"
+        "a,1,0.9,0.8\n"
+        "b,0,0.2,0.1\n"
+        "b,1,0.8,0.9\n",
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        [sys.executable, str(script), "--input-csv", str(csv_path), "--output-dir", str(tmp_path / "run"),
+         "--leave-one-subject-out"],
+        check=True, capture_output=True, text=True,
+    )
+
+    metrics = json.loads((tmp_path / "run" / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["validation"]["strategy"] == "LeaveOneGroupOut"
+
+
+def test_subject_evaluation_supports_the_selected_estimator():
+    pytest.importorskip("sklearn")
+    features = SchemaArray([
+        [0.1, 0.2], [0.2, 0.3], [0.8, 0.7], [0.9, 0.8],
+        [0.15, 0.25], [0.85, 0.75], [0.18, 0.28], [0.88, 0.78],
+    ])
+    report = evaluate_subject_wise(
+        features, [0, 0, 1, 1, 0, 1, 0, 1], ["a", "a", "b", "b", "c", "c", "d", "d"],
+        leave_one_subject_out=True, estimator_name="extra_trees",
+    )
+
+    assert report.strategy == "LeaveOneGroupOut"
+
+
+def test_real_training_with_zero_guard_cannot_be_promoted(tmp_path):
+    pytest.importorskip("sklearn")
+    script = Path(__file__).resolve().parents[2] / "scripts" / "train_prefall_model.py"
+    csv_path = tmp_path / "prefall.csv"
+    csv_path.write_text(
+        "subject_id,label,sway,step_width\n"
+        "a,0,0.1,0.2\n"
+        "a,1,0.9,0.8\n"
+        "b,0,0.2,0.1\n"
+        "b,1,0.8,0.9\n",
+        encoding="utf-8",
+    )
+    audit_path = tmp_path / "dataset_summary.json"
+    audit_path.write_text(json.dumps({"horizon_sec": 1.0, "guard_sec": 0.0}), encoding="utf-8")
+
+    subprocess.run(
+        [sys.executable, str(script), "--input-csv", str(csv_path), "--output-dir", str(tmp_path / "run"),
+         "--dataset-summary", str(audit_path), "--leave-one-subject-out"],
+        check=True, capture_output=True, text=True,
+    )
+
+    metrics = json.loads((tmp_path / "run" / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["promoted"] is False
+    assert "guard_sec below 0.5" in metrics["promotion_blockers"]

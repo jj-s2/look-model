@@ -56,6 +56,7 @@ def make_subject_folds(
 def evaluate_subject_wise(
     features: Any, labels: Any, subject_ids: Sequence[Any], *, n_splits: int = 5,
     threshold: float = 0.5, random_seed: int = 42, leave_one_subject_out: bool = False,
+    estimator_name: str = "logistic_regression",
 ) -> EvaluationReport:
     """Fit a fresh model per group-isolated fold and aggregate validation metrics."""
     if len(features) != len(labels) or len(labels) != len(subject_ids):
@@ -63,7 +64,9 @@ def evaluate_subject_wise(
     folds = make_subject_folds(subject_ids, n_splits, leave_one_subject_out=leave_one_subject_out)
     metrics = []
     for train_idx, valid_idx in folds:
-        model = PrefallModel(random_seed=random_seed, threshold=threshold)
+        model = PrefallModel(
+            random_seed=random_seed, threshold=threshold, estimator_name=estimator_name,
+        )
         model.fit(_take_rows(features, train_idx), _take_rows(labels, train_idx))
         predictions = model.predict(_take_rows(features, valid_idx))
         metrics.append(_binary_metrics(_take_rows(labels, valid_idx), predictions))

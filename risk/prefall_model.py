@@ -16,6 +16,7 @@ class PrefallModel:
 
     random_seed: int = 42
     threshold: float = 0.5
+    estimator_name: str = "logistic_regression"
     feature_names: tuple[str, ...] = field(default_factory=tuple, init=False)
     training_summary: dict[str, Any] = field(default_factory=dict, init=False)
     _estimator: Any = field(default=None, init=False, repr=False)
@@ -28,11 +29,20 @@ class PrefallModel:
             raise ValueError("features and labels must have the same number of rows")
         if len(set(labels)) < 2:
             raise ValueError("labels must contain both pre-fall and non-pre-fall examples")
-        Pipeline, StandardScaler, LogisticRegression = self._load_training_dependencies()
+        Pipeline, StandardScaler, LogisticRegression, ExtraTreesClassifier = self._load_training_dependencies()
         self.feature_names = columns
+        if self.estimator_name == "logistic_regression":
+            classifier = LogisticRegression(class_weight="balanced", random_state=self.random_seed)
+        elif self.estimator_name == "extra_trees":
+            classifier = ExtraTreesClassifier(
+                n_estimators=400, class_weight="balanced", random_state=self.random_seed,
+                max_features="sqrt", min_samples_leaf=2, n_jobs=-1,
+            )
+        else:
+            raise ValueError("estimator_name must be 'logistic_regression' or 'extra_trees'")
         self._estimator = Pipeline([
             ("scaler", StandardScaler()),
-            ("classifier", LogisticRegression(class_weight="balanced", random_state=self.random_seed)),
+            ("classifier", classifier),
         ])
         self._estimator.fit(features, labels)
         self.training_summary = {
@@ -54,7 +64,9 @@ class PrefallModel:
 
     def metadata(self, *, metrics: dict[str, float] | None = None, promoted: bool | None = None) -> dict[str, Any]:
         return {
-            "model_type": "StandardScaler+LogisticRegression",
+            "model_type": f"StandardScaler+{type(self._estimator.named_steps['classifier']).__name__}"
+            if self._estimator is not None else "unfitted",
+            "estimator_name": self.estimator_name,
             "feature_schema": list(self.feature_names),
             "random_seed": self.random_seed,
             "threshold": self.threshold,
@@ -79,8 +91,9 @@ class PrefallModel:
             )
 
     @staticmethod
-    def _load_training_dependencies() -> tuple[Any, Any, Any]:
+    def _load_training_dependencies() -> tuple[Any, Any, Any, Any]:
         try:
+            from sklearn.ensemble import ExtraTreesClassifier
             from sklearn.linear_model import LogisticRegression
             from sklearn.pipeline import Pipeline
             from sklearn.preprocessing import StandardScaler
@@ -89,4 +102,4 @@ class PrefallModel:
                 "scikit-learn is required for PrefallModel.fit. "
                 "Install the project's ML training dependencies before training."
             ) from error
-        return Pipeline, StandardScaler, LogisticRegression
+        return Pipeline, StandardScaler, LogisticRegression, ExtraTreesClassifier
