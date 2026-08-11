@@ -518,6 +518,13 @@ def _finite_metric(value: object) -> float | None:
     return numeric if math.isfinite(numeric) else None
 
 
+def _bounded_metric(value: object, lower: float, upper: float) -> float | None:
+    numeric = _finite_metric(value)
+    if numeric is None or numeric < lower or numeric > upper:
+        return None
+    return numeric
+
+
 def _valid_sha256(value: object) -> bool:
     return type(value) is str and len(value) == 64 and all(character in _SHA256_HEX for character in value)
 
@@ -535,7 +542,7 @@ def _unique_seeds(value: object) -> set[str]:
     for item in value:
         if isinstance(item, Mapping):
             item = item.get("seed")
-        if item is not None and not isinstance(item, (dict, list, tuple, set)):
+        if type(item) is int:
             seeds.add(str(item))
     return seeds
 
@@ -559,6 +566,15 @@ def _promotion_inputs(candidate: object) -> tuple[Mapping[str, Any], Mapping[str
     return (_object_mapping(nested_raw, "nested summary"), _object_mapping(continuous_raw, "continuous gate"), _object_mapping(config_raw, "release config"), _object_mapping(baseline_raw, "baseline summary"))
 
 
+def _normalized_release_config(value: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Validate and normalize a release config through its public schema."""
+
+    try:
+        return RGPCReleaseConfig(**dict(value)).to_dict()
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _release_ids(candidate: object, nested: Mapping[str, Any], gate: Mapping[str, Any], config: Mapping[str, Any]) -> str:
     raw_ids = [
         _candidate_value(candidate, ("release_id",)),
@@ -576,26 +592,21 @@ def _release_ids(candidate: object, nested: Mapping[str, Any], gate: Mapping[str
 def _hash_checks(candidate: object, gate: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
     valid = all(_valid_sha256(config.get(name)) for name in ("model_sha256", "dataset_sha256", "split_sha256"))
     checkpoint_hash = _candidate_value(candidate, ("checkpoint_sha256", "checkpoint_hash", "model_sha256"))
-    if checkpoint_hash is not None:
-        valid = valid and _valid_sha256(checkpoint_hash) and checkpoint_hash == config.get("model_sha256")
+    valid = valid and _valid_sha256(checkpoint_hash) and checkpoint_hash == config.get("model_sha256")
     gate_inputs = gate.get("input_hashes")
     declared_inputs = _candidate_value(candidate, ("input_hashes",), None)
-    if gate_inputs is not None:
-        valid = valid and isinstance(gate_inputs, Mapping) and bool(gate_inputs) and all(_valid_sha256(value) for value in gate_inputs.values())
-    if declared_inputs is not None:
-        valid = valid and isinstance(declared_inputs, Mapping)
-        if isinstance(gate_inputs, Mapping):
-            valid = valid and dict(declared_inputs) == dict(gate_inputs)
-        elif isinstance(declared_inputs, Mapping):
-            valid = valid and all(_valid_sha256(value) for value in declared_inputs.values())
+    required_inputs = {"predictions", "truth_events", "release_config"}
+    valid = valid and isinstance(gate_inputs, Mapping) and set(gate_inputs) == required_inputs
+    valid = valid and all(_valid_sha256(gate_inputs.get(key)) for key in required_inputs) if isinstance(gate_inputs, Mapping) else False
+    valid = valid and isinstance(declared_inputs, Mapping) and dict(declared_inputs) == dict(gate_inputs)
     config_hash = _candidate_value(candidate, ("config_sha256", "release_config_sha256"), None)
-    if config_hash is not None:
-        valid = valid and _valid_sha256(config_hash)
-        if isinstance(gate_inputs, Mapping) and gate_inputs.get("release_config") is not None:
-            valid = valid and config_hash == gate_inputs.get("release_config")
+    valid = valid and _valid_sha256(config_hash)
+    if isinstance(gate_inputs, Mapping):
+        valid = valid and config_hash == gate_inputs.get("release_config")
     output_hashes = gate.get("output_sha256")
-    if output_hashes is not None:
-        valid = valid and isinstance(output_hashes, Mapping) and all(_valid_sha256(value) for value in output_hashes.values())
+    required_outputs = {"continuous_metrics.json", "transitions.jsonl", "alerts.jsonl", "promotion_gate.json"}
+    valid = valid and isinstance(output_hashes, Mapping) and set(output_hashes) == required_outputs
+    valid = valid and all(_valid_sha256(output_hashes.get(key)) for key in required_outputs) if isinstance(output_hashes, Mapping) else False
     return bool(valid)
 
 
@@ -608,47 +619,62 @@ def finalize_rgpc_release(candidate_artifacts: RGPCPromotionArtifacts | Mapping[
     selection = _object_mapping(nested.get("selection", {}), "selection")
     calibration = _object_mapping(nested.get("calibration", {}), "calibration")
     nested_checks = nested.get("promotion_checks") if isinstance(nested.get("promotion_checks"), Mapping) else {}
+    normalized_config = _normalized_release_config(config)
+    nested_config_raw = nested.get("release_config")
+    normalized_nested_config = _normalized_release_config(nested_config_raw) if isinstance(nested_config_raw, Mapping) else None
     checks: dict[str, bool] = {
         "selection": nested.get("selection_feasible", selection.get("feasible", nested_checks.get("selection_feasible"))) is True
     }
+    checks["release_config"] = (
+        normalized_config is not None
+        and normalized_nested_config is not None
+        and normalized_config == normalized_nested_config
+        and normalized_config["release_id"] == release_id
+    )
 
-    candidate_f1 = _metric(aggregate, ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))
-    baseline_f1 = _metric(baseline, ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))
+    candidate_f1 = _bounded_metric(_first_path(aggregate, tuple((name,) for name in ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))), 0.0, 1.0)
+    baseline_f1 = _bounded_metric(_first_path(baseline, tuple((name,) for name in ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))), 0.0, 1.0)
     explicit_f1 = _candidate_value(candidate_artifacts, ("macro_event_f1_improved",), None)
     checks["macro_event_f1"] = bool(explicit_f1) if explicit_f1 is not None else (candidate_f1 is not None and baseline_f1 is not None and candidate_f1 > baseline_f1)
 
     constraints = continuous.get("constraints") if isinstance(continuous.get("constraints"), Mapping) else {}
-    recall_floor = _finite_metric(_candidate_value(candidate_artifacts, ("recall_floor",), constraints.get("minimum_event_recall")))
-    recall_floor = recall_floor if recall_floor is not None else (_finite_metric(selection.get("recall_floor")) or _DEFAULT_RECALL_FLOOR)
-    candidate_recall = _metric(aggregate, ("event_recall", "recall", "macro_event_recall"))
-    checks["recall"] = candidate_recall is not None and candidate_recall >= recall_floor
+    recall_floor = _bounded_metric(_candidate_value(candidate_artifacts, ("recall_floor",), constraints.get("minimum_event_recall")), 0.0, 1.0)
+    if recall_floor is None:
+        recall_floor = _bounded_metric(selection.get("recall_floor"), 0.0, 1.0)
+    if recall_floor is None and _candidate_value(candidate_artifacts, ("recall_floor",), constraints.get("minimum_event_recall")) is None and selection.get("recall_floor") is None:
+        recall_floor = _DEFAULT_RECALL_FLOOR
+    candidate_recall = _bounded_metric(_first_path(aggregate, (("event_recall",), ("recall",), ("macro_event_recall",))), 0.0, 1.0)
+    checks["recall"] = candidate_recall is not None and recall_floor is not None and candidate_recall >= recall_floor
 
     false_ceiling = _finite_metric(_candidate_value(candidate_artifacts, ("maximum_false_alerts_per_hour",), constraints.get("maximum_false_alerts_per_hour")))
-    candidate_false = _metric(aggregate, ("false_alerts_per_hour", "false_alarm_rate"))
-    baseline_false = _metric(baseline, ("false_alerts_per_hour", "false_alarm_rate"))
+    false_ceiling = false_ceiling if false_ceiling is not None and false_ceiling >= 0.0 else None
+    candidate_false = _bounded_metric(_first_path(aggregate, (("false_alerts_per_hour",), ("false_alarm_rate",))), 0.0, float("inf"))
+    baseline_false = _bounded_metric(_first_path(baseline, (("false_alerts_per_hour",), ("false_alarm_rate",))), 0.0, float("inf"))
     checks["false_alerts_per_hour"] = candidate_false is not None and ((baseline_false is not None and candidate_false <= baseline_false) or (baseline_false is None and false_ceiling is not None and candidate_false <= false_ceiling))
 
-    ece_bound = _finite_metric(_candidate_value(candidate_artifacts, ("calibration_ece_ceiling",), calibration_ece_ceiling))
+    ece_bound = _bounded_metric(_candidate_value(candidate_artifacts, ("calibration_ece_ceiling",), calibration_ece_ceiling), 0.0, 1.0)
     calibration_valid = calibration.get("valid") is True or calibration.get("status") in {"valid", "passed"} or calibration.get("bounded") is True
-    ece = _metric(calibration, ("ece", "expected_calibration_error"))
+    ece = _bounded_metric(_first_path(calibration, (("ece",), ("expected_calibration_error",))), 0.0, 1.0)
     checks["calibration"] = calibration_valid and ece is not None and ece_bound is not None and ece <= ece_bound
 
-    coverage_floor = _finite_metric(_candidate_value(candidate_artifacts, ("minimum_coverage", "coverage_floor"), constraints.get("minimum_coverage")))
-    coverage_floor = coverage_floor if coverage_floor is not None else (_finite_metric(config.get("minimum_coverage")) or _DEFAULT_COVERAGE_FLOOR)
-    candidate_coverage = _metric(aggregate, ("coverage", "selective_coverage"))
-    checks["coverage"] = candidate_coverage is not None and candidate_coverage >= coverage_floor
+    raw_coverage_floor = _candidate_value(candidate_artifacts, ("minimum_coverage", "coverage_floor"), constraints.get("minimum_coverage"))
+    if raw_coverage_floor is None:
+        raw_coverage_floor = config.get("minimum_coverage")
+    coverage_floor = _bounded_metric(raw_coverage_floor, 0.0, 1.0)
+    if coverage_floor is None and raw_coverage_floor is None:
+        coverage_floor = _DEFAULT_COVERAGE_FLOOR
+    candidate_coverage = _bounded_metric(_first_path(aggregate, (("coverage",), ("selective_coverage",))), 0.0, 1.0)
+    checks["coverage"] = candidate_coverage is not None and coverage_floor is not None and candidate_coverage >= coverage_floor
 
-    candidate_aurc = _metric(aggregate, ("aurc", "risk_coverage_aurc"))
-    baseline_aurc = _metric(baseline, ("aurc", "risk_coverage_aurc"))
+    candidate_aurc = _bounded_metric(_first_path(aggregate, (("aurc",), ("risk_coverage_aurc",))), 0.0, 1.0)
+    baseline_aurc = _bounded_metric(_first_path(baseline, (("aurc",), ("risk_coverage_aurc",))), 0.0, 1.0)
     explicit_aurc = _candidate_value(candidate_artifacts, ("aurc_improved",), None)
     checks["aurc"] = bool(explicit_aurc) if explicit_aurc is not None else (candidate_aurc is not None and baseline_aurc is not None and candidate_aurc < baseline_aurc)
 
     seeds = _candidate_value(candidate_artifacts, ("seeds", "seed_results"), nested.get("seeds", nested.get("seed_results")))
     checks["seeds"] = len(_unique_seeds(seeds)) >= 3
     continuous_checks = continuous.get("checks")
-    checks["continuous"] = continuous.get("passed") is True and (
-        not isinstance(continuous_checks, Mapping) or all(value is True for value in continuous_checks.values())
-    )
+    checks["continuous"] = continuous.get("passed") is True and isinstance(continuous_checks, Mapping) and bool(continuous_checks) and all(value is True for value in continuous_checks.values())
     checks["hashes"] = _hash_checks(candidate_artifacts, continuous, config)
     reasons = [name for name, passed in checks.items() if not passed]
     result: dict[str, Any] = {"schema_version": "rgpc.promotion.v1", "release_id": release_id, "promoted": not reasons, "reasons": reasons, "promotion_checks": checks}
@@ -662,6 +688,7 @@ def finalize_rgpc_release(candidate_artifacts: RGPCPromotionArtifacts | Mapping[
     destination = Path(destination_raw)
     if destination.name.lower() != "release":
         destination = destination / "release"
+    result["release_dir"] = str(destination)
 
     def write_staging(staging: Path) -> None:
         source_raw = _candidate_value(candidate_artifacts, ("source_dir",), None)
@@ -676,7 +703,6 @@ def finalize_rgpc_release(candidate_artifacts: RGPCPromotionArtifacts | Mapping[
         _write_json(staging / "promotion_result.json", result)
 
     _publish_artifacts(destination, write_staging)
-    result["release_dir"] = str(destination)
     return result
 
 
