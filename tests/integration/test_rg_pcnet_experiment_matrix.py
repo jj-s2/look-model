@@ -138,3 +138,22 @@ def test_matrix_rejects_manifest_with_mismatched_run_spec(tmp_path: Path):
         assert "run specification mismatch" in str(exc)
     else:  # pragma: no cover - a mismatched runner spec must never be accepted
         raise AssertionError("mismatched run specification must be rejected")
+
+
+def test_matrix_rejects_numeric_type_drift_in_run_spec(tmp_path: Path):
+    matrix = build_experiment_matrix(outer_subjects=("s1",), seeds=(42,), variants=("phase",))
+    input_hashes = {"dataset_lock": _sha("dataset-lock")}
+
+    def runner(run, run_dir):
+        _write_real_artifact(run, run_dir, input_hashes)
+        path = run_dir / "run_manifest.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["seed"] = 42.0
+        path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    try:
+        run_experiment_matrix(matrix, output_root=tmp_path, runner=runner, input_hashes=input_hashes)
+    except ValueError as exc:
+        assert "run specification mismatch" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("numeric type drift must be rejected")

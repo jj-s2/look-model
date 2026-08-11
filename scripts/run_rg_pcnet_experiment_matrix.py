@@ -203,7 +203,8 @@ def _validate_manifest(run: ExperimentRun, manifest: Mapping[str, Any], expected
         "held_out_dataset": run.held_out_dataset,
         "config_overrides": dict(run.config_overrides),
     }
-    if any(manifest.get(key) != value for key, value in expected_spec.items()):
+    actual_spec = {key: manifest.get(key) for key in expected_spec}
+    if _canonical_bytes(actual_spec) != _canonical_bytes(expected_spec):
         raise ValueError(f"run specification mismatch in {path}")
     result = dict(manifest)
     result["input_hashes"] = input_hashes
@@ -461,9 +462,9 @@ def _manifest_subjects(path: Path) -> tuple[str, ...]:
         subjects = value.get("outer_subjects", value.get("subjects"))
     else:
         subjects = None
-    if not isinstance(subjects, list) or not subjects:
+    if not isinstance(subjects, list) or not subjects or any(type(subject) is not str for subject in subjects):
         raise ValueError("frozen manifest must declare a non-empty subjects list")
-    return tuple(str(subject) for subject in subjects)
+    return tuple(subjects)
 
 
 def _parser() -> argparse.ArgumentParser:
