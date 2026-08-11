@@ -32,3 +32,5 @@ def test_crossdomain_folds_keep_fall_and_adl_sequences_out_of_training(tmp_path:
     assert len(report["folds"]) == 4
     assert all(fold["held_out_fall_sequence"] not in fold["train_fall_sequences"] for fold in report["folds"])
     assert all(fold["adl_holdout_sequences"] for fold in report["folds"])
+    assert (tmp_path / "output" / "fall_predictions.jsonl").is_file()
+    assert (tmp_path / "output" / "adl_predictions.jsonl").is_file()
