@@ -635,7 +635,7 @@ def finalize_rgpc_release(candidate_artifacts: RGPCPromotionArtifacts | Mapping[
     candidate_f1 = _bounded_metric(_first_path(aggregate, tuple((name,) for name in ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))), 0.0, 1.0)
     baseline_f1 = _bounded_metric(_first_path(baseline, tuple((name,) for name in ("macro_event_f1", "event_macro_f1", "macro_f1", "event_f1", "subject_macro_f1", "f1"))), 0.0, 1.0)
     explicit_f1 = _candidate_value(candidate_artifacts, ("macro_event_f1_improved",), None)
-    checks["macro_event_f1"] = bool(explicit_f1) if explicit_f1 is not None else (candidate_f1 is not None and baseline_f1 is not None and candidate_f1 > baseline_f1)
+    checks["macro_event_f1"] = (explicit_f1 if type(explicit_f1) is bool else False) if explicit_f1 is not None else (candidate_f1 is not None and baseline_f1 is not None and candidate_f1 > baseline_f1)
 
     constraints = continuous.get("constraints") if isinstance(continuous.get("constraints"), Mapping) else {}
     recall_floor = _bounded_metric(_candidate_value(candidate_artifacts, ("recall_floor",), constraints.get("minimum_event_recall")), 0.0, 1.0)
@@ -669,7 +669,7 @@ def finalize_rgpc_release(candidate_artifacts: RGPCPromotionArtifacts | Mapping[
     candidate_aurc = _bounded_metric(_first_path(aggregate, (("aurc",), ("risk_coverage_aurc",))), 0.0, 1.0)
     baseline_aurc = _bounded_metric(_first_path(baseline, (("aurc",), ("risk_coverage_aurc",))), 0.0, 1.0)
     explicit_aurc = _candidate_value(candidate_artifacts, ("aurc_improved",), None)
-    checks["aurc"] = bool(explicit_aurc) if explicit_aurc is not None else (candidate_aurc is not None and baseline_aurc is not None and candidate_aurc < baseline_aurc)
+    checks["aurc"] = (explicit_aurc if type(explicit_aurc) is bool else False) if explicit_aurc is not None else (candidate_aurc is not None and baseline_aurc is not None and candidate_aurc < baseline_aurc)
 
     seeds = _candidate_value(candidate_artifacts, ("seeds", "seed_results"), nested.get("seeds", nested.get("seed_results")))
     checks["seeds"] = len(_unique_seeds(seeds)) >= 3

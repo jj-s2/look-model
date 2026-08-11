@@ -208,3 +208,14 @@ def test_negative_coverage_floor_is_rejected(tmp_path: Path) -> None:
 
     assert result["promoted"] is False
     assert "coverage" in result["reasons"]
+
+
+def test_explicit_improvement_flags_must_be_booleans(tmp_path: Path) -> None:
+    candidate = _candidate(tmp_path)
+    setattr(candidate, "macro_event_f1_improved", "false")
+    setattr(candidate, "aurc_improved", "false")
+
+    result = finalize_rgpc_release(candidate)
+
+    assert result["promoted"] is False
+    assert {"macro_event_f1", "aurc"}.issubset(set(result["reasons"]))
