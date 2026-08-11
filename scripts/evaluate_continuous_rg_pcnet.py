@@ -14,9 +14,15 @@ import json
 import math
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
+
+# Keep direct ``python scripts/evaluate_continuous_rg_pcnet.py`` invocation
+# equivalent to module execution when launched from outside the repository.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from risk.phase_model.continuous_replay import ReplayFrame, replay_stream
 from risk.phase_model.event_evaluation import Alert, TruthEvent, evaluate_continuous_events
@@ -326,7 +332,6 @@ def evaluate_continuous(
             "timestamp": transition.timestamp,
         }
         for transition in replay.alerts
-        if transition.emitted == "fall_confirmed"
     ]
     checks = {
         "event_recall": metrics["event_recall"] >= recall_limit,
@@ -373,16 +378,18 @@ def evaluate_continuous(
             "source_provenance": source,
             "passed": all(checks.values()),
         }
-        # A file cannot contain the hash of its exact final bytes without a
-        # fixed-point hash.  The gate records a deterministic self-hash of the
-        # canonical payload before this one map entry is added, while the
-        # other three values are hashes of their exact published bytes.
-        gate["output_sha256"]["promotion_gate.json"] = _sha256_bytes(
-            _canonical_json(gate)
-        )
         gate["output_sha256_scope"] = (
-            "promotion_gate.json hash is over canonical gate payload before "
-            "its self entry is added"
+            "promotion_gate.json hash is over canonical gate JSON with its "
+            "self entry removed"
+        )
+        # A file cannot contain the hash of its exact final bytes without a
+        # fixed-point hash.  Hash a canonical copy of the final gate with only
+        # this self entry removed; the other three values hash their exact
+        # published bytes.
+        self_excluding_gate = dict(gate)
+        self_excluding_gate["output_sha256"] = dict(gate["output_sha256"])
+        gate["output_sha256"]["promotion_gate.json"] = _sha256_bytes(
+            _canonical_json(self_excluding_gate)
         )
         files = {
             "continuous_metrics.json": metric_bytes,

@@ -1,4 +1,7 @@
 import json
+import hashlib
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -63,6 +66,23 @@ def _write_fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     return predictions, truth, release, output
 
 
+def _sha256(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _canonical_json(value: object) -> bytes:
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def test_continuous_evaluation_writes_verifiable_artifacts(tmp_path: Path):
     predictions, truth, release, output = _write_fixture(tmp_path)
     result = evaluate_continuous(
@@ -94,6 +114,38 @@ def test_continuous_evaluation_writes_verifiable_artifacts(tmp_path: Path):
         "maximum_false_alerts_per_hour": 0.0,
         "minimum_coverage": 0.8,
     }
+    output_hashes = gate["output_sha256"]
+    assert set(output_hashes) == {
+        "continuous_metrics.json",
+        "transitions.jsonl",
+        "alerts.jsonl",
+        "promotion_gate.json",
+    }
+    for name in ("continuous_metrics.json", "transitions.jsonl", "alerts.jsonl"):
+        assert output_hashes[name] == _sha256((output / name).read_bytes())
+
+    # The gate cannot contain a fixed-point hash of its own final bytes.  Its
+    # self entry is therefore explicitly self-excluding and must hash the
+    # final canonical gate with only that entry removed.
+    self_excluding_gate = dict(gate)
+    self_excluding_output_hashes = dict(output_hashes)
+    self_excluding_output_hashes.pop("promotion_gate.json")
+    self_excluding_gate["output_sha256"] = self_excluding_output_hashes
+    assert output_hashes["promotion_gate.json"] == _sha256(
+        _canonical_json(self_excluding_gate)
+    )
+    assert gate["output_sha256_scope"] == (
+        "promotion_gate.json hash is over canonical gate JSON with its "
+        "self entry removed"
+    )
+    alerts = [
+        json.loads(line)
+        for line in (output / "alerts.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert {record["emitted"] for record in alerts} >= {
+        "fall_confirmed",
+        "fall_recovered",
+    }
     assert (output / "transitions.jsonl").read_text(encoding="utf-8").endswith("\n")
     assert (output / "alerts.jsonl").read_text(encoding="utf-8").endswith("\n")
 
@@ -113,3 +165,17 @@ def test_gate_is_conjunctive_and_prediction_order_is_strict(tmp_path: Path):
             maximum_false_alerts_per_hour=0.0,
             minimum_coverage=0.8,
         )
+
+
+def test_direct_cli_invocation_bootstraps_repository_imports():
+    repo_root = Path(__file__).resolve().parents[2]
+    script = repo_root / "scripts" / "evaluate_continuous_rg_pcnet.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--predictions" in result.stdout
