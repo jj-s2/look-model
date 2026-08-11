@@ -35,6 +35,8 @@ def train_urfall_external_experiment(
     device_name = _resolve_device(device)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoints_dir = output_dir / "checkpoints"
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
     sequence_array = np.asarray(sequences)
     folds: list[dict[str, object]] = []
     predictions: list[dict[str, object]] = []
@@ -61,6 +63,14 @@ def train_urfall_external_experiment(
         with torch.no_grad():
             probabilities = torch.sigmoid(model(torch.as_tensor(poses[valid_index], dtype=torch.float32, device=device_name))).cpu().numpy()
         metrics = _binary_metrics(labels[valid_index], probabilities >= 0.5)
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "model_config": {"joints": 33, "hidden_dim": hidden_dim, "dropout": dropout},
+                "held_out_sequence": held_out,
+            },
+            checkpoints_dir / f"{held_out}.pt",
+        )
         folds.append({"held_out_sequence": held_out, "train_sequences": sorted(set(sequence_array[train_index].tolist())), "sample_count": int(len(valid_index)), **metrics})
         for sample_index, probability in zip(valid_index.tolist(), probabilities.tolist(), strict=True):
             predictions.append({"sample_id": sample_ids[sample_index], "sequence_id": sequences[sample_index], "label": int(labels[sample_index]), "probability": float(probability), "prediction": int(probability >= 0.5), "held_out_sequence": held_out})

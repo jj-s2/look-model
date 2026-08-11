@@ -33,3 +33,4 @@ def test_external_training_uses_sequence_grouped_folds_and_never_promotes(tmp_pa
     assert report["split_unit"] == "sequence_id"
     assert report["sequence_count"] == 4
     assert all(fold["held_out_sequence"] not in fold["train_sequences"] for fold in report["folds"])
+    assert (tmp_path / "output" / "checkpoints" / "urfall-fall-01.pt").is_file()
