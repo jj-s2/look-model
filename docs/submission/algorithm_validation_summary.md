@@ -37,4 +37,3 @@ python scripts/select_urfall_threshold.py --fall-predictions F:/datasets/fall_pr
 ## 使用边界
 
 这些指标来自公开数据集的离线实验，不代表萤石摄像头真实场景性能。部署前必须以设备实拍视频做独立验证，并保留人工确认和报警冷却机制。所有 UR Fall 训练产物均为 promoted=false。
-
