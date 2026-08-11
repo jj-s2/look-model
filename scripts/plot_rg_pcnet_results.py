@@ -13,6 +13,9 @@ import argparse
 import hashlib
 import json
 import math
+import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -75,8 +78,12 @@ def _number(value: Any, name: str, *, lower: float | None = None, upper: float |
     if not math.isfinite(number):
         raise ValueError(f"{name} must be a finite number")
     if lower is not None and number < lower:
+        if upper is None:
+            raise ValueError(f"{name} must be greater than or equal to {lower:g}")
         raise ValueError(f"{name} must be in [{lower:g}, {upper:g}]")
     if upper is not None and number > upper:
+        if lower is None:
+            raise ValueError(f"{name} must be less than or equal to {upper:g}")
         raise ValueError(f"{name} must be in [{lower:g}, {upper:g}]")
     return 0.0 if number == 0.0 else number
 
@@ -110,6 +117,8 @@ def _models(payload: Mapping[str, Any], name: str) -> dict[str, float]:
             raw_name = item.get("name", item.get("model"))
             if type(raw_name) is not str or not raw_name.strip():
                 raise ValueError(f"{name} models[{index}] is missing a model name")
+            if raw_name in normalized:
+                raise ValueError(f"{name} contains duplicate model: {raw_name}")
             normalized[raw_name] = _required(item, "f1", f"{name} models[{index}]")
         candidates = normalized
     if not isinstance(candidates, Mapping) or not candidates:
@@ -121,6 +130,8 @@ def _models(payload: Mapping[str, Any], name: str) -> dict[str, float]:
         label = _MODEL_ALIASES.get(_model_key(raw_name), raw_name.strip())
         if not label:
             raise ValueError(f"{name} model names must be non-empty")
+        if label in parsed:
+            raise ValueError(f"{name} contains duplicate model: {label}")
         parsed[label] = _model_value(raw_value, label)
     missing = [label for label in _REQUIRED_MODELS if label not in parsed]
     if missing:
@@ -207,8 +218,21 @@ def _continuous_metrics(payload: Mapping[str, Any]) -> tuple[dict[str, float], i
     if not isinstance(values, Mapping):
         raise ValueError("continuous_metrics must contain a metrics object")
     required = ("event_recall", "false_alerts_per_hour", "median_delay_seconds", "coverage")
+    bounds = {
+        "event_recall": (0.0, 1.0),
+        "false_alerts_per_hour": (0.0, None),
+        # Early alerts are represented by negative delay relative to the true
+        # interval start; only finiteness is constrained for this metric.
+        "median_delay_seconds": (None, None),
+        "coverage": (0.0, 1.0),
+    }
     parsed = {
-        key: _number(_required(values, key, "continuous_metrics"), f"continuous_metrics {key}", lower=0.0, upper=1.0 if key in {"event_recall", "coverage"} else None)
+        key: _number(
+            _required(values, key, "continuous_metrics"),
+            f"continuous_metrics {key}",
+            lower=bounds[key][0],
+            upper=bounds[key][1],
+        )
         for key in required
     }
     raw_count = values.get("subject_count", payload.get("subject_count"))
@@ -231,13 +255,101 @@ def _matplotlib():
     return plt
 
 
+def _font_selection(plt: Any) -> dict[str, Any]:
+    """Select a CJK-capable family when installed, with deterministic fallback."""
+
+    from matplotlib import font_manager
+
+    candidates = (
+        "SimHei",
+        "Microsoft YaHei",
+        "Noto Sans CJK SC",
+        "Noto Sans CJK",
+        "Source Han Sans CN",
+    )
+    for family in candidates:
+        try:
+            path = font_manager.findfont(
+                font_manager.FontProperties(family=[family]),
+                fallback_to_default=False,
+            )
+        except (OSError, ValueError):
+            continue
+        if Path(path).is_file():
+            plt.rcParams["font.family"] = [family]
+            # Some CJK fonts omit U+2212 even though they cover Chinese glyphs;
+            # use the ASCII minus sign so negative delays render warning-free.
+            plt.rcParams["axes.unicode_minus"] = False
+            return {"family": family, "fallback": False}
+    fallback = "DejaVu Sans"
+    plt.rcParams["font.family"] = [fallback]
+    plt.rcParams["axes.unicode_minus"] = False
+    return {"family": fallback, "fallback": True}
+
+
+def _display_labels(labels: Sequence[str], fallback: bool) -> list[str]:
+    """Avoid missing-glyph warnings when no CJK font exists on the host."""
+
+    if not fallback:
+        return list(labels)
+    return [
+        label if all(ord(character) < 128 for character in label) else f"item-{index + 1}"
+        for index, label in enumerate(labels)
+    ]
+
+
 def _save_figure(fig: Any, output_dir: Path, name: str) -> tuple[Path, Path]:
     png = output_dir / f"{name}.png"
     svg = output_dir / f"{name}.svg"
     fig.savefig(png, format="png", dpi=200, metadata={"Software": "RG-PCNet evaluation"})
     fig.savefig(svg, format="svg", metadata={"Date": None})
     fig.clf()
+    # ``clf`` removes axes but keeps the figure registered in pyplot.  Close
+    # it as well so repeated batch rendering does not leak dozens of figures.
+    try:
+        import matplotlib.pyplot as plt
+
+        plt.close(fig)
+    except (ImportError, ModuleNotFoundError):
+        pass
     return png, svg
+
+
+def _publish_directory(staging: Path, destination: Path) -> None:
+    """Atomically publish a complete plot directory, preserving old output."""
+
+    backup: Path | None = None
+    moved_destination = False
+    staging_owned = True
+    try:
+        if destination.exists():
+            if not destination.is_dir():
+                raise ValueError(f"output path must be a directory: {destination}")
+            backup = Path(
+                tempfile.mkdtemp(prefix=f".{destination.name}.backup-", dir=destination.parent)
+            )
+            backup.rmdir()
+            os.replace(destination, backup)
+            moved_destination = True
+        os.replace(staging, destination)
+        staging_owned = False
+        if backup is not None:
+            shutil.rmtree(backup)
+            backup = None
+    except Exception:
+        if moved_destination and backup is not None and backup.exists():
+            if destination.exists():
+                shutil.rmtree(destination)
+            os.replace(backup, destination)
+            backup = None
+        raise
+    finally:
+        if staging_owned and staging.exists():
+            shutil.rmtree(staging)
+        # If restoration itself failed, retain the backup for recovery instead
+        # of deleting the only copy of the old output.
+        if backup is not None and backup.exists() and not moved_destination:
+            shutil.rmtree(backup)
 
 
 def plot_rg_pcnet_results(
@@ -266,67 +378,82 @@ def plot_rg_pcnet_results(
     figure_subject_count = continuous_subject_count or subject_count
 
     output = Path(output_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    plt = _matplotlib()
-    paths: dict[str, Path] = {}
-    manifest_figures: dict[str, dict[str, Any]] = {}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # Render into a sibling staging directory.  The caller's existing output
+    # remains untouched until every PNG, SVG, and the manifest are complete.
+    staging = Path(tempfile.mkdtemp(prefix=f".{output.name}.staging-", dir=output.parent))
+    plt: Any | None = None
+    try:
+        plt = _matplotlib()
+        font = _font_selection(plt)
+        fallback = bool(font["fallback"])
+        paths: dict[str, Path] = {}
+        manifest_figures: dict[str, dict[str, Any]] = {}
 
-    fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
-    labels = list(models)
-    palette = ["#718096", "#4299e1", "#ed8936", "#38a169", "#805ad5"]
-    axis.bar(labels, [models[label] for label in labels], color=[palette[index % len(palette)] for index in range(len(labels))])
-    axis.set_ylim(0.0, 1.0)
-    axis.set_ylabel("F1")
-    axis.set_title("LOSO model comparison")
-    axis.tick_params(axis="x", rotation=18)
-    png, svg = _save_figure(fig, output, "model_comparison")
-    paths.update({"model_comparison_png": png, "model_comparison_svg": svg})
-    manifest_figures["model_comparison"] = {"png": str(png.resolve()), "svg": str(svg.resolve()), "source_sha256": _source_hash(ablation_raw), "caption": f"LOSO model comparison; subject count: {subject_count}; intervals: descriptive."}
+        fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
+        labels = _display_labels(list(models), fallback)
+        palette = ["#718096", "#4299e1", "#ed8936", "#38a169", "#805ad5"]
+        axis.bar(labels, [models[label] for label in models], color=[palette[index % len(palette)] for index in range(len(models))])
+        axis.set_ylim(0.0, 1.0)
+        axis.set_ylabel("F1")
+        axis.set_title("LOSO model comparison")
+        axis.tick_params(axis="x", rotation=18)
+        png, svg = _save_figure(fig, staging, "model_comparison")
+        paths.update({"model_comparison_png": png, "model_comparison_svg": svg})
+        manifest_figures["model_comparison"] = {"png": str((output / png.name).resolve()), "svg": str((output / svg.name).resolve()), "source_sha256": _source_hash(ablation_raw), "caption": f"LOSO model comparison; subject count: {subject_count}; intervals: descriptive."}
 
-    fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
-    subject_labels = list(subjects)
-    axis.bar(subject_labels, [subjects[label] for label in subject_labels], color="#4299e1")
-    axis.axhline(sum(subjects.values()) / len(subjects), color="#c53030", linestyle="--", label="subject macro")
-    axis.set_ylim(0.0, 1.0)
-    axis.set_ylabel("F1")
-    axis.set_title("LOSO per-subject F1")
-    axis.tick_params(axis="x", rotation=25)
-    axis.legend()
-    png, svg = _save_figure(fig, output, "subject_f1")
-    paths.update({"subject_f1_png": png, "subject_f1_svg": svg})
-    manifest_figures["subject_f1"] = {"png": str(png.resolve()), "svg": str(svg.resolve()), "source_sha256": _source_hash(aggregate_raw), "caption": f"LOSO subject F1 with macro line; subject count: {subject_count}; intervals: descriptive."}
+        fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
+        subject_labels = _display_labels(list(subjects), fallback)
+        axis.bar(subject_labels, [subjects[label] for label in subjects], color="#4299e1")
+        axis.axhline(sum(subjects.values()) / len(subjects), color="#c53030", linestyle="--", label="subject macro")
+        axis.set_ylim(0.0, 1.0)
+        axis.set_ylabel("F1")
+        axis.set_title("LOSO per-subject F1")
+        axis.tick_params(axis="x", rotation=25)
+        axis.legend()
+        png, svg = _save_figure(fig, staging, "subject_f1")
+        paths.update({"subject_f1_png": png, "subject_f1_svg": svg})
+        manifest_figures["subject_f1"] = {"png": str((output / png.name).resolve()), "svg": str((output / svg.name).resolve()), "source_sha256": _source_hash(aggregate_raw), "caption": f"LOSO subject F1 with macro line; subject count: {subject_count}; intervals: descriptive."}
 
-    fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
-    axis.plot(clean_curve[0], clean_curve[1], marker="o", label="clean")
-    axis.plot(corrupted_curve[0], corrupted_curve[1], marker="o", label="corrupted")
-    axis.set_xlim(0.0, 1.0)
-    axis.set_ylim(0.0, 1.0)
-    axis.set_xlabel("Coverage")
-    axis.set_ylabel("Risk")
-    axis.set_title("LOSO risk-coverage")
-    axis.legend()
-    png, svg = _save_figure(fig, output, "risk_coverage")
-    paths.update({"risk_coverage_png": png, "risk_coverage_svg": svg})
-    manifest_figures["risk_coverage"] = {"png": str(png.resolve()), "svg": str(svg.resolve()), "source_sha256": _source_hash(calibration_raw), "caption": f"LOSO risk-coverage curves; subject count: {subject_count}; intervals: descriptive."}
+        fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
+        axis.plot(clean_curve[0], clean_curve[1], marker="o", label="clean")
+        axis.plot(corrupted_curve[0], corrupted_curve[1], marker="o", label="corrupted")
+        axis.set_xlim(0.0, 1.0)
+        axis.set_ylim(0.0, 1.0)
+        axis.set_xlabel("Coverage")
+        axis.set_ylabel("Risk")
+        axis.set_title("LOSO risk-coverage")
+        axis.legend()
+        png, svg = _save_figure(fig, staging, "risk_coverage")
+        paths.update({"risk_coverage_png": png, "risk_coverage_svg": svg})
+        manifest_figures["risk_coverage"] = {"png": str((output / png.name).resolve()), "svg": str((output / svg.name).resolve()), "source_sha256": _source_hash(calibration_raw), "caption": f"LOSO risk-coverage curves; subject count: {subject_count}; intervals: descriptive."}
 
-    fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
-    metric_labels = ("event recall", "false alerts/hour", "median delay (s)", "coverage")
-    metric_values = tuple(continuous[key] for key in ("event_recall", "false_alerts_per_hour", "median_delay_seconds", "coverage"))
-    axis.bar(metric_labels, metric_values, color=["#38a169", "#c53030", "#805ad5", "#4299e1"])
-    axis.set_ylabel("Value")
-    axis.set_title("continuous replay event metrics")
-    axis.tick_params(axis="x", rotation=18)
-    for index, value in enumerate(metric_values):
-        axis.text(index, value, f"{value:.3g}", ha="center", va="bottom")
-    png, svg = _save_figure(fig, output, "continuous_events")
-    paths.update({"continuous_events_png": png, "continuous_events_svg": svg})
-    manifest_figures["continuous_events"] = {"png": str(png.resolve()), "svg": str(svg.resolve()), "source_sha256": _source_hash(continuous_raw), "caption": f"continuous replay event metrics; subject count: {figure_subject_count}; intervals: descriptive."}
+        fig, axis = plt.subplots(figsize=(8.4, 5.2), constrained_layout=True)
+        metric_labels = ("event recall", "false alerts/hour", "median delay (s)", "coverage")
+        metric_values = tuple(continuous[key] for key in ("event_recall", "false_alerts_per_hour", "median_delay_seconds", "coverage"))
+        axis.bar(metric_labels, metric_values, color=["#38a169", "#c53030", "#805ad5", "#4299e1"])
+        axis.set_ylabel("Value")
+        axis.set_title("continuous replay event metrics")
+        axis.tick_params(axis="x", rotation=18)
+        for index, value in enumerate(metric_values):
+            axis.text(index, value, f"{value:.3g}", ha="center", va="bottom")
+        png, svg = _save_figure(fig, staging, "continuous_events")
+        paths.update({"continuous_events_png": png, "continuous_events_svg": svg})
+        manifest_figures["continuous_events"] = {"png": str((output / png.name).resolve()), "svg": str((output / svg.name).resolve()), "source_sha256": _source_hash(continuous_raw), "caption": f"continuous replay event metrics; subject count: {figure_subject_count}; intervals: descriptive."}
 
-    manifest = {"schema_version": "rgpc.plots.v1", "figures": manifest_figures}
-    manifest_path = output / "plot_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    paths["plot_manifest"] = manifest_path
-    return paths
+        manifest = {"schema_version": "rgpc.plots.v1", "font": font, "figures": manifest_figures}
+        manifest_path = staging / "plot_manifest.json"
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        _publish_directory(staging, output)
+        staging = None  # ownership transferred to the destination
+        paths = {key: output / path.name for key, path in paths.items()}
+        paths["plot_manifest"] = output / "plot_manifest.json"
+        return paths
+    finally:
+        if staging is not None and staging.exists():
+            shutil.rmtree(staging)
+        if plt is not None:
+            plt.close("all")
 
 
 def build_parser() -> argparse.ArgumentParser:

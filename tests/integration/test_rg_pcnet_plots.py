@@ -1,10 +1,12 @@
 import hashlib
 import json
 import math
+import warnings
 from pathlib import Path
 
 import pytest
 
+import scripts.plot_rg_pcnet_results as plotting
 from scripts.plot_rg_pcnet_results import plot_rg_pcnet_results
 
 
@@ -99,3 +101,58 @@ def test_input_key_order_does_not_change_plot_data(tmp_path):
     second_manifest = json.loads(second_result["plot_manifest"].read_text(encoding="utf-8"))
     for name in first_manifest["figures"]:
         assert first_manifest["figures"][name]["caption"] == second_manifest["figures"][name]["caption"]
+
+
+def test_negative_median_delay_is_valid_but_negative_false_alert_rate_is_rejected(tmp_path):
+    inputs = _write_inputs(tmp_path)
+    continuous = json.loads(inputs["continuous"].read_text(encoding="utf-8"))
+    continuous["median_delay_seconds"] = -2.0
+    inputs["continuous"].write_text(json.dumps(continuous), encoding="utf-8")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = plot_rg_pcnet_results(inputs["aggregate"], inputs["continuous"], inputs["calibration"], inputs["ablation"], tmp_path / "valid")
+    assert not any("Glyph" in str(item.message) for item in caught)
+    assert result["continuous_events_png"].exists()
+
+    continuous["false_alerts_per_hour"] = -1.0
+    inputs["continuous"].write_text(json.dumps(continuous), encoding="utf-8")
+    with pytest.raises(ValueError):
+        plot_rg_pcnet_results(inputs["aggregate"], inputs["continuous"], inputs["calibration"], inputs["ablation"], tmp_path / "invalid")
+
+
+def test_plot_failure_rolls_back_new_output_and_preserves_existing_output(tmp_path, monkeypatch):
+    inputs = _write_inputs(tmp_path / "inputs")
+    original = plotting._save_figure
+    calls = 0
+
+    def fail_on_second(fig, output_dir, name):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected figure failure")
+        return original(fig, output_dir, name)
+
+    monkeypatch.setattr(plotting, "_save_figure", fail_on_second)
+    new_output = tmp_path / "new-output"
+    with pytest.raises(OSError, match="injected figure failure"):
+        plot_rg_pcnet_results(inputs["aggregate"], inputs["continuous"], inputs["calibration"], inputs["ablation"], new_output)
+    assert not new_output.exists()
+    assert not list(tmp_path.glob(".new-output.*"))
+
+    existing = tmp_path / "existing-output"
+    existing.mkdir()
+    sentinel = existing / "sentinel.txt"
+    sentinel.write_text("old bytes", encoding="utf-8")
+    calls = 0
+    with pytest.raises(OSError, match="injected figure failure"):
+        plot_rg_pcnet_results(inputs["aggregate"], inputs["continuous"], inputs["calibration"], inputs["ablation"], existing)
+    assert sentinel.read_text(encoding="utf-8") == "old bytes"
+    assert not list(tmp_path.glob(".existing-output.*"))
+
+
+def test_manifest_records_font_selection_and_fallback_state(tmp_path):
+    inputs = _write_inputs(tmp_path)
+    output = plot_rg_pcnet_results(inputs["aggregate"], inputs["continuous"], inputs["calibration"], inputs["ablation"], tmp_path / "out")
+    manifest = json.loads(output["plot_manifest"].read_text(encoding="utf-8"))
+    assert isinstance(manifest["font"]["family"], str) and manifest["font"]["family"]
+    assert type(manifest["font"]["fallback"]) is bool
