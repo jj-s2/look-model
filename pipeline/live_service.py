@@ -11,6 +11,7 @@ from typing import Any, Callable, Protocol, Sequence
 from alerts.dispatcher import AlertDispatcher
 from core.events import EventType, SensorEvent, Source
 from fusion.decision_engine import DecisionEngine, RiskDecision
+from mental.checkin_prompts import build_prompt_for_decision
 from storage.clip_buffer import CircularClipBuffer
 from storage.retention import RetentionPolicy
 
@@ -43,6 +44,7 @@ class ServiceSnapshot:
     source_errors: tuple[str, ...] = ()
     events: tuple[SensorEvent, ...] = ()
     system_health: str = "healthy"
+    wellbeing_prompt: dict[str, object] | None = None
 
 
 class LiveMonitoringService:
@@ -150,6 +152,7 @@ class LiveMonitoringService:
                     )
         evaluated = self._run_component("decision engine", self.decision_engine.evaluate, events, now, errors=errors, default=[])
         decisions = tuple(evaluated)
+        wellbeing_prompt = next((build_prompt_for_decision(decision, now=now) for decision in decisions if build_prompt_for_decision(decision, now=now) is not None), None)
         if self.dispatcher is not None:
             for decision in decisions:
                 if self._should_dispatch(decision, events):
@@ -174,6 +177,7 @@ class LiveMonitoringService:
             source_errors=tuple(errors),
             events=tuple(events),
             system_health=self._system_health(source_state, events, errors),
+            wellbeing_prompt=wellbeing_prompt,
         )
         self.last_snapshot = snapshot
         return snapshot

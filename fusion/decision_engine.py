@@ -31,6 +31,8 @@ class RiskDecision:
     timestamp: datetime | None = None
     recovery_confirmed: bool = False
     delivery_scope: str = "external_allowed"
+    uncertainty: float | None = None
+    state: str | None = None
 
 
 class DecisionEngine:
@@ -159,6 +161,8 @@ class DecisionEngine:
                 ("wellbeing evidence is unavailable; no invitation is generated", reason), "degraded",
                 "retain a local record and wait for reliable voluntary evidence", self._subject(event), event.timestamp,
                 delivery_scope=delivery_scope,
+                uncertainty=1.0,
+                state="abstained",
             )
         sustained = bool(event.payload.get("sustained_change"))
         level: RiskLevel = "warning" if sustained else "watch"
@@ -174,6 +178,8 @@ class DecisionEngine:
             ("sustained wellbeing trend change" if sustained else "wellbeing trend change", physiology_reason),
             "screening_only", action, self._subject(event), event.timestamp,
             delivery_scope=delivery_scope,
+            uncertainty=float(event.payload.get("uncertainty", 0.0)) if isinstance(event.payload.get("uncertainty", 0.0), Real) else None,
+            state=str(event.payload.get("state")) if isinstance(event.payload.get("state"), str) else None,
         )
 
     @classmethod

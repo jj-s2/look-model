@@ -24,7 +24,7 @@ def start_gds15_screening(gds: GDS15 | None = None) -> dict[str, Any]:
     return {
         "active": True,
         "questions": [
-            {"id": item.id, "question_zh": item.question_zh, "options": item.options, "risk_answer": item.risk_answer}
+            {"id": item.id, "question_zh": item.question_zh, "options": item.options}
             for item in scale.items
         ],
         "notice": SCREENING_NOTICE,
@@ -45,8 +45,24 @@ def submit_gds15_answers(answers: Mapping[str, bool], gds: GDS15 | None = None) 
 
 def dashboard_view_model(snapshot: ServiceSnapshot) -> dict[str, Any]:
     """Create redaction-safe display data without importing Gradio or a browser."""
+    state_labels = {
+        "invite_candidate": "建议自愿简短问候",
+        "screening_concern": "筛查关注（非诊断）",
+        "abstained": "证据不足，暂不判断",
+        "human_review_required": "需要人工复核",
+    }
+
     def display(decision):
-        return {"level": decision.level, "score": decision.score, "evidence": list(decision.reasons)}
+        item = {"level": decision.level, "score": decision.score, "evidence": list(decision.reasons)}
+        if decision.kind == "wellbeing_change":
+            state = decision.state or next((reason for reason in decision.reasons if reason in state_labels), None)
+            item.update({
+                "state_zh": state_labels.get(state or "", "心理变化提示"),
+                "delivery_scope": decision.delivery_scope,
+                "uncertainty": decision.uncertainty,
+                "is_diagnosis": False,
+            })
+        return item
 
     fall_events = [
         display(decision)
@@ -72,6 +88,7 @@ def dashboard_view_model(snapshot: ServiceSnapshot) -> dict[str, Any]:
         "wellbeing_changes": wellbeing_changes,
         "wellbeing_prompts": wellbeing_changes,
         "wellbeing_trend": [item["score"] for item in wellbeing_changes],
+        "wellbeing_prompt": snapshot.wellbeing_prompt,
         "evidence": [reason for decision in snapshot.decisions for reason in decision.reasons],
         "alert_history": list(snapshot.alert_history),
         "screening_notice": SCREENING_NOTICE,
@@ -94,7 +111,7 @@ def build_dashboard(service: LiveMonitoringService):
         return (
             model["watermark"], model["device_quality"], model["latest_frame"], model["emergency_events"],
             model["prefall_warnings"], model["fall_forecasts"], model["fall_trend"], model["wellbeing_prompts"], model["wellbeing_trend"], model["evidence"],
-            model["alert_history"], model["errors"],
+            model["alert_history"], model["errors"], model["wellbeing_prompt"],
         )
 
     def begin_gds15():
@@ -127,6 +144,7 @@ def build_dashboard(service: LiveMonitoringService):
         evidence = gr.JSON(label="证据说明")
         alert_history = gr.JSON(label="告警历史")
         errors = gr.JSON(label="组件状态")
+        wellbeing_prompt = gr.JSON(label="自愿短问候（本地）")
         gds_start = gr.Button("我主动发起 GDS-15 筛查", interactive=True)
         gds_status = gr.Markdown(SCREENING_NOTICE)
         with gr.Column(visible=False) as gds_panel:
@@ -139,7 +157,7 @@ def build_dashboard(service: LiveMonitoringService):
         refresh_button.click(
             refresh,
             outputs=[watermark, device_quality, latest_frame, fall_events, prefall_warnings, fall_forecasts,
-                     fall_trend, wellbeing_changes, wellbeing_trend, evidence, alert_history, errors],
+                     fall_trend, wellbeing_changes, wellbeing_trend, evidence, alert_history, errors, wellbeing_prompt],
         )
         gds_start.click(begin_gds15, outputs=[gds_panel, gds_status])
         gds_submit.click(submit_gds15, inputs=gds_answers, outputs=gds_status)

@@ -38,11 +38,11 @@ def test_user_initiated_gds_flow_loads_fifteen_questions_then_scores_answers() -
 
     assert start["active"] is True
     assert len(start["questions"]) == 15
-    answers = {question["id"]: question["risk_answer"] for question in start["questions"]}
+    answers = {question["id"]: False for question in start["questions"]}
 
     result = submit_gds15_answers(answers)
 
-    assert result["score"] == 15
+    assert result["score"] == 5
     assert result["is_diagnosis"] is False
     assert "筛查不构成诊断" in result["notice"]
 
