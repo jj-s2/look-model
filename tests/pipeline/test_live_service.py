@@ -200,3 +200,57 @@ def test_malformed_batch_event_is_dropped_and_other_components_continue() -> Non
     assert "camera: invalid data" in snapshot.source_errors
     assert dispatcher.history_requested is True
     assert retention.called is True
+
+
+def test_live_service_marks_model_abstention_degraded_and_keeps_events() -> None:
+    abstained = SensorEvent(
+        timestamp=NOW, source=Source.VISION, event_type=EventType.POSE,
+        payload={"tracking_id": "elder-1", "quality_mode": "abstained"},
+        quality=DataQuality(False, .2, False, "model_reliability_gate"),
+    )
+    result = LiveMonitoringService(clock=lambda: NOW).step(SourceBatch((abstained,)))
+    assert result.system_health == "degraded"
+    assert result.events == (abstained,)
+    assert not any(event.event_type is EventType.FALL_EVENT for event in result.events)
+
+
+def test_live_service_preserves_release_event_id_for_clip_confirmation(tmp_path) -> None:
+    class RecordingClip:
+        def __init__(self):
+            self.ids = []
+
+        def on_frame(self, frame, timestamp):
+            return None
+
+        def confirm_event(self, event_id):
+            self.ids.append(event_id)
+
+    clip = RecordingClip()
+    event = SensorEvent(
+        timestamp=NOW, source=Source.VISION, event_type=EventType.FALL_EVENT,
+        payload={"subject_id": "elder-1", "event_id": "fall-000007", "confirmed": True},
+        quality=DataQuality(True, .95, False),
+    )
+    LiveMonitoringService(clip_buffer=clip, clock=lambda: NOW).step(SourceBatch((event,), frame="f"))
+    assert clip.ids == ["fall-000007"]
+
+
+def test_live_service_does_not_dispatch_rgpc_suspected_transition() -> None:
+    class RecordingDispatcher:
+        def __init__(self):
+            self.calls = 0
+
+        def dispatch(self, decision):
+            self.calls += 1
+
+        def recent_alerts(self, limit=None):
+            return []
+
+    event = SensorEvent(
+        timestamp=NOW, source=Source.VISION, event_type=EventType.FALL_EVENT,
+        payload={"subject_id": "elder-1", "event_id": "fall-000001", "event_state": "suspected", "confirmed": False},
+        quality=DataQuality(True, .9, False),
+    )
+    dispatcher = RecordingDispatcher()
+    LiveMonitoringService(dispatcher=dispatcher, clock=lambda: NOW).step(SourceBatch((event,)))
+    assert dispatcher.calls == 0

@@ -3,25 +3,138 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from core.events import DataQuality, EventType, SensorEvent, Source
-from risk.phase_model.schema import PoseObservation
+from risk.phase_model.event_state import EventDecoder, EventDecoderConfig, FrameDecision
+from risk.phase_model.release_config import RGPCReleaseConfig, load_release_config
+from risk.phase_model.rg_predictor import RGPredictor
+from risk.phase_model.schema import Phase, PhaseModelOutput, PoseObservation
+from risk.phase_model.windows import DualTimescaleBuffer
 
 from .live_service import SourceBatch
+
+
+class _RGPCPhaseService:
+    """Adapt one release predictor and decoder to the live pose contract."""
+
+    def __init__(self, predictor: Any, decoder: EventDecoder, *, buffer: Any | None = None) -> None:
+        self.predictor = predictor
+        self.decoder = decoder
+        self.buffer = buffer or DualTimescaleBuffer(
+            short_frames=48, short_fps=10.0, long_frames=64, long_fps=2.0,
+        )
+
+    def observe(self, observation: PoseObservation) -> tuple[SensorEvent, ...]:
+        window = self.buffer.append(observation)
+        if window is None:
+            score = min(observation.scores) if observation.scores else 0.0
+            return (SensorEvent(
+                timestamp=observation.timestamp, source=Source.VISION, event_type=EventType.POSE,
+                payload={"tracking_id": observation.tracking_id, "quality_mode": "abstained"},
+                quality=DataQuality(False, max(0.0, min(1.0, score)), False, "insufficient_window"),
+            ),)
+        output = self.predictor.predict(window)
+        if not isinstance(output, PhaseModelOutput):
+            raise TypeError("RG-PCNet predictor must return PhaseModelOutput")
+        reliable = output.fall_decision is not None
+        confidence = max(0.0, min(1.0, float(output.quality_score)))
+        phase = self._decoder_phase(output.phase)
+        transition = self.decoder.update(FrameDecision(
+            timestamp=observation.timestamp.timestamp(),
+            fall_probability=output.fall_event_prob,
+            phase=phase,
+            reliable=reliable,
+        ))
+        common_payload = {
+            "subject_id": observation.tracking_id,
+            "tracking_id": observation.tracking_id,
+            "phase": phase,
+            "event_state": transition.state,
+        }
+        if not reliable:
+            return (SensorEvent(
+                timestamp=observation.timestamp, source=Source.VISION, event_type=EventType.POSE,
+                payload={**common_payload, "quality_mode": "abstained"},
+                quality=DataQuality(False, confidence, False, "model_reliability_gate"),
+            ),)
+        quality = DataQuality(True, confidence, False, None)
+        events: list[SensorEvent] = [SensorEvent(
+            timestamp=observation.timestamp, source=Source.VISION, event_type=EventType.POSE,
+            payload={**common_payload, "fall_probability": output.fall_event_prob}, quality=quality,
+        )]
+        if transition.emitted in {"fall_confirmed", "fall_recovered"}:
+            recovered = transition.emitted == "fall_recovered"
+            events.append(SensorEvent(
+                timestamp=observation.timestamp, source=Source.VISION, event_type=EventType.FALL_EVENT,
+                payload={
+                    **common_payload,
+                    "event_id": transition.event_id,
+                    "confirmed": not recovered,
+                    "recovered": recovered,
+                    "recovery_confirmed": recovered,
+                }, quality=quality,
+            ))
+        return tuple(events)
+
+    @staticmethod
+    def _decoder_phase(phase: Phase | None) -> str:
+        if phase in {Phase.DESCENDING, Phase.IMPACT}:
+            return "descent_or_impact"
+        if phase in {Phase.FALLEN, Phase.RECOVERING}:
+            return "postfall_or_recovery"
+        if phase is Phase.NORMAL_ADL:
+            return "normal"
+        return "prefall"
 
 
 class VisionPhaseSource:
     name = "vision"
 
-    def __init__(self, stream: Any, pose_pipeline: Any, tracker: Any, phase_service: Any, *, clock=None) -> None:
+    def __init__(self, stream: Any, pose_pipeline: Any, tracker: Any, phase_service: Any, *, clock=None, release_config: RGPCReleaseConfig | None = None) -> None:
         self.stream = stream
         self.pose_pipeline = pose_pipeline
         self.tracker = tracker
         self.phase_service = phase_service
         self.clock = clock
+        self.decoder = getattr(phase_service, "decoder", None)
+        self.release_config = release_config
+
+    @classmethod
+    def from_rgpc_release(
+        cls,
+        release_dir: str | Path,
+        *,
+        device: str = "auto",
+        stream: Any = None,
+        pose_pipeline: Any = None,
+        tracker: Any = None,
+        clock=None,
+    ) -> "VisionPhaseSource":
+        directory = Path(release_dir)
+        config = load_release_config(directory / "release_config.json")
+        predictor = RGPredictor.from_release(directory, device=device)
+        decoder = EventDecoder(EventDecoderConfig(
+            fall_threshold=config.fall_threshold,
+            confirm_seconds=config.confirm_seconds,
+            recovery_seconds=config.recovery_seconds,
+            cooldown_seconds=config.cooldown_seconds,
+        ))
+        buffer = DualTimescaleBuffer(min_coverage=config.minimum_coverage)
+        phase_service = _RGPCPhaseService(predictor, decoder, buffer=buffer)
+        return cls(
+            stream, pose_pipeline, tracker, phase_service,
+            clock=clock, release_config=config,
+        )
 
     def poll(self, now: datetime) -> SourceBatch:
+        if self.stream is None:
+            return SourceBatch((SensorEvent(
+                timestamp=now, source=Source.VISION, event_type=EventType.AVAILABILITY,
+                payload={"modality": "vision"},
+                quality=DataQuality(False, 0.0, False, "stream_not_configured"),
+            ),))
         raw = self.stream.read_frame()
         if isinstance(raw, tuple) and len(raw) == 2:
             ok, frame = raw

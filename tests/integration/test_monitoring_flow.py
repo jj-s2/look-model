@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 
 import pytest
 
 from core.events import DataQuality, EventType, SensorEvent, Source
 from pipeline.live_service import LiveMonitoringService
+from pipeline.live_service import SourceBatch
+from risk.phase_model.schema import Phase, PhaseModelOutput, PoseObservation
 from scripts.benchmark_live_pipeline import benchmark_live_pipeline
 from scripts.generate_evaluation_report import ReleaseGateError, build_report, generate_evaluation_report
 
@@ -151,3 +153,47 @@ def test_report_renders_fall_and_adl_confusion_matrices() -> None:
 
     assert "| fall | 8 | 1 | 1 | 10 |" in report
     assert "| adl | 10 | 1 | 1 | 8 |" in report
+
+
+def test_rgpc_event_id_is_stable_across_confirmation_and_recovery() -> None:
+    class FakeDecoder:
+        def __init__(self):
+            self.config = type("Config", (), {"confirm_seconds": .1, "recovery_seconds": .1})()
+            self.calls = 0
+
+        def update(self, decision):
+            self.calls += 1
+            from risk.phase_model.event_state import EventTransition
+            if self.calls == 1:
+                return EventTransition("suspected", "fall-000001", None, "pending", decision.timestamp)
+            if self.calls == 2:
+                return EventTransition("confirmed", "fall-000001", "fall_confirmed", "confirmed", decision.timestamp)
+            return EventTransition("recovered", "fall-000001", "fall_recovered", "recovered", decision.timestamp)
+
+    class FakePredictor:
+        def predict(self, window):
+            return PhaseModelOutput(
+                phase_probs=(1.0, 0, 0, 0, 0, 0), fall_event_prob=.9,
+                prefall_prob=0, recovery_prob=0, quality_score=.95,
+                embedding_version="e", model_version="r1", phase=Phase.DESCENDING,
+                fall_decision=1,
+            )
+
+    from pipeline.vision_phase_source import _RGPCPhaseService
+    service = _RGPCPhaseService(FakePredictor(), FakeDecoder())
+    service.buffer = type("Buffer", (), {"append": lambda self, observation: object()})()
+    def obs(t):
+        return PoseObservation(
+            timestamp=NOW + timedelta(seconds=t), tracking_id="elder-1",
+            keypoints=((1.0, 2.0),) * 17, scores=(.9,) * 17,
+            visible_mask=(True,) * 17, bbox=(0, 0, 20, 40), frame_size=(20, 40),
+            stream_fresh=True,
+        )
+    first = service.observe(obs(0.0))
+    second = service.observe(obs(1.0))
+    third = service.observe(obs(2.0))
+    confirmed = next(item for item in second if item.event_type is EventType.FALL_EVENT)
+    recovered = next(item for item in third if item.event_type is EventType.FALL_EVENT)
+    assert confirmed.payload["event_id"] == recovered.payload["event_id"] == "fall-000001"
+    assert confirmed.payload["confirmed"] is True
+    assert recovered.payload["recovered"] is True
