@@ -211,6 +211,8 @@ def build_experiment_matrix(
     subjects = tuple(_normalise_name(value, "outer_subject") for value in outer_subjects)
     if len(set(subjects)) != len(subjects) or not subjects:
         raise ValueError("outer_subjects must be non-empty and unique")
+    if any("/" in subject or "\\" in subject for subject in subjects):
+        raise ValueError("outer_subjects must not contain path separators")
     if not seeds:
         raise ValueError("seeds must be non-empty")
     seed_values: list[int] = []

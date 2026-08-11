@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from risk.phase_model.experiment_matrix import VARIANTS, build_experiment_matrix
+import pytest
 
 
 def test_matrix_contains_fixed_ablations_seeds_and_outer_subjects():
@@ -36,3 +37,8 @@ def test_run_specification_is_immutable_and_has_canonical_configuration():
         assert type(exc).__name__ in {"FrozenInstanceError", "AttributeError"}
     else:  # pragma: no cover - makes the contract explicit
         raise AssertionError("ExperimentRun must be immutable")
+
+
+def test_subject_names_cannot_escape_run_root():
+    with pytest.raises(ValueError, match="path separators"):
+        build_experiment_matrix(outer_subjects=("../s1",), seeds=(42,))

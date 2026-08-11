@@ -456,8 +456,15 @@ def _manifest_subjects(path: Path) -> tuple[str, ...]:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", required=True, type=Path, help="frozen LOSO manifest JSON")
+    parser.add_argument("--manifest", "--loso-manifest", dest="manifest", required=True, type=Path, help="frozen LOSO manifest JSON")
     parser.add_argument("--dataset-lock", required=True, type=Path, help="dataset lock file")
+    parser.add_argument(
+        "--baseline-path",
+        action="append",
+        default=[],
+        metavar="NAME=PATH",
+        help="immutable baseline/evaluation input; may be repeated",
+    )
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--runner-command", required=True, help="command that writes run_manifest.json; use {run_dir} placeholders")
     parser.add_argument("--subjects", nargs="*", default=None)
@@ -471,7 +478,20 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     subjects = tuple(args.subjects) if args.subjects else _manifest_subjects(args.manifest)
-    input_hashes = hash_input_paths({"frozen_manifest": args.manifest, "dataset_lock": args.dataset_lock})
+    input_paths: dict[str, Path] = {
+        "frozen_manifest": args.manifest,
+        "dataset_lock": args.dataset_lock,
+    }
+    for entry in args.baseline_path:
+        if "=" not in entry:
+            raise ValueError("--baseline-path must use NAME=PATH")
+        name, raw_path = entry.split("=", 1)
+        if not name.strip() or not raw_path.strip():
+            raise ValueError("--baseline-path must use NAME=PATH")
+        if name.strip() in input_paths:
+            raise ValueError(f"duplicate immutable input name: {name.strip()}")
+        input_paths[name.strip()] = Path(raw_path.strip())
+    input_hashes = hash_input_paths(input_paths)
     matrix = build_experiment_matrix(
         outer_subjects=subjects,
         seeds=tuple(args.seeds),
