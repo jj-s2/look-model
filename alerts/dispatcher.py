@@ -31,6 +31,9 @@ class AlertDispatcher:
 
     def dispatch(self, decision: RiskDecision) -> DispatchResult:
         key = self._dedupe_key(decision)
+        if decision.kind == "wellbeing_change" or decision.delivery_scope != "external_allowed":
+            self._append(decision, sent=False)
+            return DispatchResult(False, "external delivery forbidden for wellbeing", key)
         if self._is_recovery(decision):
             self._active_fall_levels.pop(decision.subject_id, None)
             self._last_sent.pop(key, None)

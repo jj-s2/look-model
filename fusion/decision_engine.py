@@ -30,6 +30,7 @@ class RiskDecision:
     subject_id: str = "unknown"
     timestamp: datetime | None = None
     recovery_confirmed: bool = False
+    delivery_scope: str = "external_allowed"
 
 
 class DecisionEngine:
@@ -147,6 +148,18 @@ class DecisionEngine:
         )
 
     def _wellbeing_change(self, event: SensorEvent, physiology_abnormal: bool) -> RiskDecision:
+        delivery_scope = event.payload.get("delivery_scope", "external_forbidden")
+        if not isinstance(delivery_scope, str) or delivery_scope != "external_allowed":
+            delivery_scope = "external_forbidden"
+        quality_failure = self._quality_failure(event)
+        if quality_failure is not None or event.payload.get("state") == "abstained":
+            reason = quality_failure or "wellbeing assessment abstained"
+            return RiskDecision(
+                "wellbeing_change", "watch", 0.0,
+                ("wellbeing evidence is unavailable; no invitation is generated", reason), "degraded",
+                "retain a local record and wait for reliable voluntary evidence", self._subject(event), event.timestamp,
+                delivery_scope=delivery_scope,
+            )
         sustained = bool(event.payload.get("sustained_change"))
         level: RiskLevel = "warning" if sustained else "watch"
         score = 0.7 if sustained else 0.4
@@ -160,6 +173,7 @@ class DecisionEngine:
             "wellbeing_change", level, score,
             ("sustained wellbeing trend change" if sustained else "wellbeing trend change", physiology_reason),
             "screening_only", action, self._subject(event), event.timestamp,
+            delivery_scope=delivery_scope,
         )
 
     @classmethod

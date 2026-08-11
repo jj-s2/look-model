@@ -239,6 +239,8 @@ class LiveMonitoringService:
     @staticmethod
     def _should_dispatch(decision: RiskDecision, events: Sequence[SensorEvent]) -> bool:
         """Do not alert on RG-PCNet suspected/abstained evidence."""
+        if decision.kind == "wellbeing_change" or decision.delivery_scope != "external_allowed":
+            return False
         for event in events:
             if event.event_type is not EventType.FALL_EVENT:
                 continue
