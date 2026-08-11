@@ -124,6 +124,24 @@ python -m pytest tests
 自动报警，或对摄像头/日常录音直接推断心理状态。模型指标与哈希见该目录中的
 `metrics.json` 和 `README.md`。
 
+### PACE-WB 心理变化预警
+
+当前心理链路采用 `PACE-Behavior → PACE-Voluntary research_shadow → PACE-Safety Gate`：
+日级聚合只识别个人基线变化，短问答必须由老人主动同意；低质量、缺失、模态冲突
+或研究权重缺失时弃权。普通 wellbeing 事件在融合、实时服务和告警分发三层均禁止
+外发，只有内部人工复核记录可以进入待办。默认发布配置见
+`configs/screening/pace_wb_v1.json`，验证报告见
+`docs/superpowers/handoff/2026-08-12-pace-wb-validation-report.md`。
+
+```powershell
+python scripts/train_wellbeing_shadow.py --input <consented-checkins.jsonl> --output-dir outputs/mental/shadow-run
+python scripts/evaluate_wellbeing_shadow.py --artifact outputs/mental/shadow-run/shadow_model.joblib --input <held-out-checkins.jsonl> --output outputs/mental/shadow-run/evaluation.json
+python scripts/evaluate_wellbeing_release.py --config configs/screening/pace_wb_v1.json --evidence <evidence.json> --output-dir outputs/mental/release-audit
+```
+
+没有独立老年外部验证时，发布门控会返回 `promoted=false`；EATD 结果仅作研究基线，
+不等同于老年人现场效果或心理诊断。
+
 ## 说明
 
 本仓库为研究与比赛原型。第三方组件及许可证信息见 `THIRD_PARTY_NOTICES.md`。

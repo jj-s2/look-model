@@ -1,0 +1,49 @@
+{
+  "schema_version": "pace-wb.validation.v1",
+  "measured_on": "2026-08-12",
+  "model_mode": "rules_v1_plus_research_shadow",
+  "promoted": false,
+  "research_only": true,
+  "elderly_external_validation": {
+    "status": "missing",
+    "subject_count": 0,
+    "reason": "No independent elderly longitudinal paired dataset has been supplied."
+  },
+  "measured_software_validation": {
+    "mental_fusion_pipeline_ui_integration_passed": 260,
+    "alert_suite_passed": 13,
+    "total_selected_regression_passed": 273,
+    "command": "python -m pytest tests/mental tests/fusion tests/pipeline tests/ui tests/integration -q; python -m pytest tests/alerts -q"
+  },
+  "behavior_gate": {
+    "cold_start_days": "0-6",
+    "provisional_days": "7-13",
+    "operational_min_effective_days": 14,
+    "persistence_rule": "same feature in at least 2 of the last 3 effective days",
+    "low_quality_action": "abstain",
+    "anomaly_baseline_action": "freeze anomalous day"
+  },
+  "shadow_baseline_reference": {
+    "dataset": "EATD official train/validation split",
+    "validation_subjects": 79,
+    "validation_positive": 11,
+    "f1": 0.3,
+    "roc_auc": 0.6697860962566845,
+    "promoted": false,
+    "claim_boundary": "research screening only; not elderly validation or diagnosis",
+    "artifact": "outputs/releases/eatd-text-screening-research-only/eatd_text_baseline.joblib"
+  },
+  "safety_and_delivery": {
+    "wellbeing_external_dispatches_in_scope_tests": 0,
+    "human_review_external_dispatch": false,
+    "risk_answer_exposed_to_ui": false,
+    "raw_media_stored_by_shadow_contract": false,
+    "fall_delivery_path_changed": false
+  },
+  "limitations": [
+    "The EATD baseline is not an elderly clinical or field validation set.",
+    "MacBERT/eGeMAPS adapters remain optional research components; missing weights abstain.",
+    "No psychological diagnosis, emergency decision, or automatic family/EZVIZ message is produced.",
+    "Promotion requires an independent elderly subject-level external evaluation and staffed human review."
+  ]
+}
