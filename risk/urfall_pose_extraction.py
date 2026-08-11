@@ -61,6 +61,7 @@ def extract_urfall_pose_windows(
     *,
     detector: PoseDetector,
     image_loader: Callable[[bytes], np.ndarray] | None = None,
+    require_complete_pairs: bool = True,
 ) -> dict[str, int]:
     """Extract only complete finite pose windows from a guarded UR Fall manifest."""
     manifest_path, rgb_dir, output_dir = Path(manifest_path), Path(rgb_dir), Path(output_dir)
@@ -131,7 +132,11 @@ def extract_urfall_pose_windows(
             continue
         if invalid_image:
             summary["excluded_invalid_image"] += 1
-    complete_sequences = _complete_sequences(records, pose_records)
+    complete_sequences = (
+        _complete_sequences(records, pose_records)
+        if require_complete_pairs
+        else {record["sequence_id"] for record, _ in pose_records}
+    )
     output_rows: list[dict[str, Any]] = []
     for record, pose in pose_records:
         if record["sequence_id"] not in complete_sequences:
@@ -140,8 +145,9 @@ def extract_urfall_pose_windows(
         np.savez_compressed(output_dir / relative, pose=pose, label=np.int8(record["label"]))
         output_rows.append({**record, "pose_path": relative.as_posix(), "pose_shape": [len(pose), 33, 3]})
         summary["extracted_windows"] += 1
-    summary["excluded_incomplete_sequence"] = sum(
-        1 for record in records if isinstance(record.get("sequence_id"), str) and record["sequence_id"] not in complete_sequences
+    summary["excluded_incomplete_sequence"] = (
+        sum(1 for record in records if isinstance(record.get("sequence_id"), str) and record["sequence_id"] not in complete_sequences)
+        if require_complete_pairs else 0
     )
     (output_dir / "pose_manifest.jsonl").write_text(
         "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in output_rows),

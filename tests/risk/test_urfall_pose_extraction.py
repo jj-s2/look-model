@@ -101,3 +101,17 @@ def test_keeps_only_complete_positive_negative_sequence_pairs(tmp_path: Path) ->
     assert summary["extracted_windows"] == 0
     assert summary["excluded_incomplete_sequence"] == 2
     assert json.loads((output / "pose_manifest.jsonl").read_text(encoding="utf-8") or "[]") == []
+
+
+def test_allows_single_class_windows_when_pairing_is_disabled(tmp_path: Path) -> None:
+    rgb, output = tmp_path / "rgb", tmp_path / "output"
+    manifest = _manifest(tmp_path / "manifest.jsonl", _sha256(_archive(rgb)))
+    row = json.loads(manifest.read_text(encoding="utf-8"))
+    row.update({"sample_id": "urfall-adl-01-adl-1", "sequence_id": "urfall-adl-01", "label": 0})
+    manifest.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    pose = np.zeros((33, 3), dtype=np.float32)
+    summary = extract_urfall_pose_windows(
+        manifest, rgb, output, detector=_Detector([pose, pose, pose]), require_complete_pairs=False,
+        image_loader=lambda _: np.zeros((4, 4, 3), dtype=np.uint8),
+    )
+    assert summary["extracted_windows"] == 1

@@ -16,10 +16,14 @@ def main() -> int:
     parser.add_argument("--rgb-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--model-path", type=Path, required=True)
+    parser.add_argument("--allow-single-class-sequences", action="store_true")
     args = parser.parse_args()
     detector = MediaPipePoseDetector(args.model_path)
     try:
-        summary = extract_urfall_pose_windows(args.manifest, args.rgb_dir, args.output_dir, detector=detector)
+        summary = extract_urfall_pose_windows(
+            args.manifest, args.rgb_dir, args.output_dir, detector=detector,
+            require_complete_pairs=not args.allow_single_class_sequences,
+        )
     except ValueError as error:
         parser.error(str(error))
     finally:
@@ -29,4 +33,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
