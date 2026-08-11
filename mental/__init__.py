@@ -9,6 +9,7 @@ from .contracts import (
     VoluntaryCheckin,
     WellbeingAssessmentEvent,
 )
+from .pace_behavior import PACEBehaviorConfig, PACEBehaviorModel
 from .interaction_policy import InteractionContext, InteractionDecision, InteractionPolicy
 from .trend import (
     ActivitySummary,
@@ -25,4 +26,6 @@ __all__ = [
     "TrendResult", "WellbeingTrendAnalyzer", "DailyWellbeingObservation", "DeliveryScope",
     "ModalityEvidence", "SensitiveExpressionCandidate", "VoluntaryCheckin",
     "WellbeingAssessmentEvent",
+    "PACEBehaviorConfig",
+    "PACEBehaviorModel",
 ]
