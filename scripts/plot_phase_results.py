@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Any, Mapping, Sequence
@@ -32,7 +33,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "docs" / "figures" / "padtfs-gmdcsa24-gpu-norm")
     parser.add_argument("--device", default="auto", help="auto, cpu, cuda, or cuda:0")
     parser.add_argument("--threshold", type=float, default=0.5, help="fixed reporting threshold; no threshold fitting is performed")
+    parser.add_argument("--calibration", type=Path, default=None, help="path to calibration.json; defaults to checkpoint parent / calibration.json")
     return parser
+
+
+def _load_calibration(calibration_path: Path | None, checkpoint: Path) -> tuple[float, float]:
+    """Return (temperature, threshold) from a calibration file or defaults."""
+    path = calibration_path
+    if path is None:
+        path = checkpoint.parent / "calibration.json"
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        temperature = float(data.get("temperature", 1.0))
+        threshold = float(data.get("threshold", 0.5))
+        if math.isfinite(temperature) and temperature > 0.0 and math.isfinite(threshold) and 0.0 <= threshold <= 1.0:
+            return temperature, threshold
+    return 1.0, 0.5
+
+
+def _apply_temperature(scores: Sequence[float], temperature: float) -> list[float]:
+    """Convert raw probabilities with a positive temperature."""
+    from risk.phase_model.calibration import apply_temperature as _apply
+
+    logits = [math.log(max(score, 1e-9) / max(1.0 - score, 1e-9)) for score in scores]
+    return _apply(logits, temperature)
 
 
 def _records_arrays(records: Sequence[Mapping[str, object]]):
@@ -378,6 +402,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if not args.checkpoint.is_file():
         raise FileNotFoundError(f"checkpoint not found: {args.checkpoint}")
+    temperature, threshold = _load_calibration(args.calibration, args.checkpoint)
     metadata = {
         "release_id": args.checkpoint.parent.name,
         "checkpoint_sha256": hashlib.sha256(args.checkpoint.read_bytes()).hexdigest(),
@@ -385,10 +410,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         "mode": "live_long_only",
         "split": "test",
         "subject_level_split": True,
+        "temperature": temperature,
+        "threshold": threshold,
     }
     records, resolved_device = collect_checkpoint_predictions(args.checkpoint, args.dataset_lock, args.split_manifest, args.data_root, device=args.device)
     metadata["device"] = resolved_device
-    paths = generate_artifacts(records, args.output_dir, metadata=metadata, threshold=args.threshold)
+    if temperature != 1.0:
+        scores = [record["score"] for record in records]
+        calibrated = _apply_temperature(scores, temperature)
+        for record, score in zip(records, calibrated):
+            record["score"] = score
+            record["calibrated"] = True
+    paths = generate_artifacts(records, args.output_dir, metadata=metadata, threshold=threshold)
     summary = json.loads(paths["metrics"].read_text(encoding="utf-8"))
     print(json.dumps({key: summary[key] for key in ("samples", "positive_samples", "precision_at_threshold", "recall_at_threshold", "f1_at_threshold", "roc_auc", "average_precision", "brier_score", "best_f1_threshold")}, ensure_ascii=False, sort_keys=True))
     print(f"artifacts: {args.output_dir}")

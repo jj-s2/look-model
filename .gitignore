@@ -144,6 +144,32 @@ demo/**/*.mov
 *.bak
 *.orig
 
+# ---------------- 本地运行输出（不入库） ----------------
+# 保留已验证的发布包与小型心理验证指标；其余抓帧、日志、训练目录和
+# 临时评估结果只保留在本机，避免将设备画面或中间产物推送到 GitHub。
+outputs/**
+!outputs/mental/
+outputs/mental/**
+!outputs/mental/pace-wb-validation/
+!outputs/mental/pace-wb-validation/metrics.json
+!outputs/releases/
+!outputs/releases/eatd-text-screening-research-only/
+!outputs/releases/eatd-text-screening-research-only/README.md
+!outputs/releases/eatd-text-screening-research-only/eatd_text_baseline.joblib
+!outputs/releases/eatd-text-screening-research-only/metrics.json
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/dataset_lock.json
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/metrics.json
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/split_manifest.json
+
+# Local assistant settings and handoff scratch files.
+.claude/
+CLAUDE.md
+AGENTS.md
+docs/superpowers/handoff/progress.md
+docs/superpowers/handoff/*-optimization-report.md
+
 # ---------------- 萤石与雷达凭据 ----------------
 **/ezviz_credentials.json
 **/secret*.json

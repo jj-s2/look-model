@@ -111,3 +111,28 @@ class PhaseAwareFusionModel:
             "recovery_head": self.recovery_head.state_dict(),
             "abstain_head": self.abstain_head.state_dict(),
         }
+
+    def load_state_dict(self, state_dict: object) -> None:
+        if not isinstance(state_dict, dict):
+            raise ValueError("state_dict must be a dictionary")
+        expected_keys = {
+            "long_branch",
+            "short_projection",
+            "long_projection",
+            "phase_head",
+            "fall_head",
+            "prefall_head",
+            "recovery_head",
+            "abstain_head",
+        }
+        missing = expected_keys - set(state_dict.keys())
+        if missing:
+            raise ValueError(f"state_dict is missing keys: {sorted(missing)}")
+        self.long_branch.network.load_state_dict(state_dict["long_branch"])
+        self.short_projection.load_state_dict(state_dict["short_projection"])
+        self.long_projection.load_state_dict(state_dict["long_projection"])
+        self.phase_head.load_state_dict(state_dict["phase_head"])
+        self.fall_head.load_state_dict(state_dict["fall_head"])
+        self.prefall_head.load_state_dict(state_dict["prefall_head"])
+        self.recovery_head.load_state_dict(state_dict["recovery_head"])
+        self.abstain_head.load_state_dict(state_dict["abstain_head"])

@@ -1,59 +1,54 @@
-# Look Model
+# Look Model：老年人多模态风险监测
 
-面向老年人居家场景的多模态 AI 研究与比赛原型。它提供跌倒风险、跌倒事件和身心状态变化的分层提示；不是医疗器械，心理模块只用于筛查、变化提示和建议人工关注，**不作诊断**。
+面向居家与养老照护场景的可复现研究/比赛原型。仓库将骨架时序跌倒预判、可靠性门控、连续事件解码、萤石设备适配与低负担心理变化筛查组合为可审计链路。
 
-## 主要模块
+> 安全边界：这不是医疗器械。跌倒发布权重仍需在真实场景完成阈值校准；心理模块仅用于自愿、低频、非诊断性变化提示，默认不触发外部告警。
 
-- `vision/`：视频、摄像头与萤石流输入适配。
-- `risk/`：步态稳定性和跌倒风险规则。
-- `fusion/`：多模态融合模块预留目录。
-- `radar/`：雷达与生理数据接入预留目录。
-- `scripts/`：数据处理、训练、评估和端到端运行脚本。
-- `configs/`：OpenMMLab、PoseC3D 等实验配置。
-- `tests/`：基础自动化测试。
-- `docs/`：方案、进度和兼容性文档。
+## 仓库结构
 
-## 最短验证路径
+| 目录 | 用途 |
+| --- | --- |
+| `risk/phase_model/` | RG-PCNet / PA-DTSF 骨架时序模型、校准、事件解码和连续评估 |
+| `mental/` | PACE-WB 与文本心理筛查的研究性、人工复核链路 |
+| `devices/`、`vision/` | 萤石流、摄像头、姿态与雷达适配 |
+| `alerts/`、`pipeline/`、`core/` | 风险事件、可靠性门控、告警分发和运行编排 |
+| `configs/` | 模型、训练和筛查配置 |
+| `scripts/` | 数据准备、训练、评估、绘图和实时运行入口 |
+| `tests/` | 单元、集成和连续评估回归测试 |
+| `docs/` | 部署、演示、评估与提交材料 |
+
+## 快速开始
+
+建议使用 Python 3.10+ 和 Conda：
 
 ```powershell
 conda env create -f environment.yml
 conda activate elderly-ai
-Copy-Item .env.example .env
-python scripts/probe_ezviz_devices.py --offline-fixture --write-report docs/device-capability-report.md
-python -m pytest tests/integration/test_monitoring_flow.py -q
-python scripts/run_pipeline.py --input <local-video.mp4>
+python -m pytest tests/risk/phase_model tests/integration -q
 ```
 
-## 已发布模型的实时监测入口
+原始视频、设备令牌、抓帧、训练缓存和大部分运行输出都不会上传。只保留具有明确说明与版本边界的发布权重及其元数据。
 
-当前仓库已经把发布的 PA-DTSF 阶段模型接入统一实时服务：输入帧先经过
-YOLO11-pose 提取 17 点人体骨架，再进入短/长时间窗、质量门控、阶段预测、
-告警去重和本地看板。模型权重位于
-`outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt`。
+## 跌倒预判与实时运行
 
-先用本地视频做不打开浏览器的 GPU/CPU 冒烟运行（运行时长由参数限定）：
+已随仓库保留的研究发布包：
+
+- `outputs/releases/padtfs-gmdcsa24-gpu-norm/`：骨架跌倒阶段模型、锁定数据划分与指标；
+- 留出测试：32 个片段，ROC-AUC `0.836`、Precision `0.800`、Recall `0.750`、F1 `0.774`；
+- `metrics.json` 明确标记 `promoted=false`，因此不应将这些数字称为真实家庭或临床效果。
+
+本地视频或授权播放地址的实时冒烟：
 
 ```powershell
 python scripts/run_live_monitor.py `
   --checkpoint outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt `
-  --input <local-video.mp4> `
+  --input <local-video.mp4-or-authorized-stream-url> `
   --device auto `
   --smoke-seconds 10 `
   --no-browser
 ```
 
-需要本地 Gradio 看板时，去掉 `--no-browser`；输入可以是视频文件、摄像头编号
-（例如 `0`），或已由萤石平台授权返回的播放地址。播放地址只在本机进程中使用，
-不要把带令牌的完整地址写入日志、截图或 Git。`--help` 不会加载 Torch、YOLO、
-Gradio 或设备 SDK。
-
-当前发布检查点训练并验证的是长时骨架分支；实时适配器会对短时分支传入质量为
-零的占位向量，因此界面会保留质量标记，不会把未训练的短时特征伪装成已验证能力。
-后续若补齐短时嵌入，应单独训练、按受试者划分验证，并更新 release ID 与指标。
-
-## 生成算法效果图
-
-使用冻结的 test split 重新推理并生成 ROC/PR、混淆矩阵、阈值权衡、校准和得分分布图：
+从冻结测试划分生成 ROC/PR、校准、混淆矩阵和阈值图：
 
 ```powershell
 python scripts/plot_phase_results.py `
@@ -62,86 +57,46 @@ python scripts/plot_phase_results.py `
   --output-dir docs/figures/padtfs-gmdcsa24-gpu-norm
 ```
 
-本次留出测试结果为 32 个片段、ROC-AUC 0.836、Precision 0.800、Recall 0.750、
-F1 0.774。完整指标和图表见
-`docs/figures/padtfs-gmdcsa24-gpu-norm/`；这些是数据集留出测试证据，不等同于临床或现场设备效果。
-
-`Settings.from_env()` 会自动读取项目根目录的本地 `.env`（系统环境变量优先），因此已配置的萤石账号可以直接执行：
+训练只接受已经提取好的姿态特征与冻结划分，不会把原始视频静默混入发布数据：
 
 ```powershell
-python scripts/probe_ezviz_devices.py --write-report outputs/device-capability-live.md
-python scripts/probe_ezviz_stream.py --frames 3 --save-first-frame outputs/ezviz-first-frame.jpg
-# 激活赛事设备套餐（每个设备通道只执行成功一次）
-python scripts/activate_ezviz_package.py --package-code <package-code>
+python scripts/train_phase_model.py `
+  --dataset-lock <dataset_lock.json> `
+  --split-manifest <split_manifest.json> `
+  --data-root <feature-root> `
+  --output <run-output> `
+  --release-id <release-id> `
+  --epochs 10 --lr-scheduler cosine
 ```
 
-直播地址接口支持设备验证码以及 EZOPEN/HLS/RTMP/FLV 协议参数；若设备开启码流加密，萤石平台可能返回 60019，此时使用 EZOPEN 播放器或在设备设置中关闭码流加密后再取 HLS 帧。
+## 心理变化筛查
 
-`--offline-fixture` 不访问网络，故意显示 `unavailable`；它不是 C6c、直播、对讲或 SDNL1 的真实验证。真实设备接通后才可运行不带该参数的探测，缺失能力仍必须显示 `unavailable`，不可用演示数据替代。
-
-性能与门槛（任一失败即非零退出）：
-
-```powershell
-python scripts/benchmark_live_pipeline.py --input <controlled-local-replay.mp4> --duration-seconds 300 --output outputs/benchmark.json
-python scripts/generate_evaluation_report.py --metrics experiments/outputs/losocv/summary.json outputs/benchmark.json --output docs/evaluation-report.md
-```
-
-完整部署、设备能力、评估边界和比赛演示步骤见 [部署说明](docs/deployment.md)、[设备能力报告](docs/device-capability-report.md)、[评估报告](docs/evaluation-report.md) 和 [演示脚本](docs/demo-script.md)。
-
-## 环境
-
-推荐使用 Conda：
-
-```powershell
-conda env create -f environment.yml
-conda activate elderly-ai
-```
-
-也可根据 `requirements.txt` 在 Python 3.10 环境中安装依赖。
-
-## 快速检查
-
-```powershell
-python scripts/test_cuda.py
-python -m pytest tests
-```
-
-端到端入口为 `scripts/run_pipeline.py`。运行前请根据本机目录、模型权重和输入设备调整配置。
-
-## 数据与模型
-
-原始数据、处理后的序列化数据和设备凭据不会提交到 Git。协作者应按照
-`datasets/README.md`、`models/README.md` 及相关脚本自行准备。
-
-为保证比赛演示可复现，以下经过明确边界标记的模型权重随仓库发布：
-
-- 跌倒风险相位模型：`outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt`；
-- EATD 文本心理筛查研究基线：
-  `outputs/releases/eatd-text-screening-research-only/eatd_text_baseline.joblib`。
-
-第二项只用于非诊断性、低频且自愿的研究筛查。其验证 F1 为 0.300、AUC 为
-0.670，未达到可部署标准，始终保持 `promoted=false`；不得据此作医疗诊断、
-自动报警，或对摄像头/日常录音直接推断心理状态。模型指标与哈希见该目录中的
-`metrics.json` 和 `README.md`。
-
-### PACE-WB 心理变化预警
-
-当前心理链路采用 `PACE-Behavior → PACE-Voluntary research_shadow → PACE-Safety Gate`：
-日级聚合只识别个人基线变化，短问答必须由老人主动同意；低质量、缺失、模态冲突
-或研究权重缺失时弃权。普通 wellbeing 事件在融合、实时服务和告警分发三层均禁止
-外发，只有内部人工复核记录可以进入待办。默认发布配置见
-`configs/screening/pace_wb_v1.json`，验证报告见
-`docs/superpowers/handoff/2026-08-12-pace-wb-validation-report.md`。
+心理通道只接受老人自愿填写的问答或明确同意的文本记录。它会输出趋势、质量状态与人工复核建议；`research_only`、`external_dispatch_allowed=false` 或可靠性不足时一律弃权，不会生成短信、电话或设备播报。
 
 ```powershell
 python scripts/train_wellbeing_shadow.py --input <consented-checkins.jsonl> --output-dir outputs/mental/shadow-run
-python scripts/evaluate_wellbeing_shadow.py --artifact outputs/mental/shadow-run/shadow_model.joblib --input <held-out-checkins.jsonl> --output outputs/mental/shadow-run/evaluation.json
-python scripts/evaluate_wellbeing_release.py --config configs/screening/pace_wb_v1.json --evidence <evidence.json> --output-dir outputs/mental/release-audit
+python scripts/evaluate_wellbeing_shadow.py --artifact <shadow_model.joblib> --input <held-out-checkins.jsonl> --output <evaluation.json>
 ```
 
-没有独立老年外部验证时，发布门控会返回 `promoted=false`；EATD 结果仅作研究基线，
-不等同于老年人现场效果或心理诊断。
+`outputs/releases/eatd-text-screening-research-only/` 是文本研究基线：验证 AUC `0.670`、F1 `0.300`，仅供复现和后续改进，不可用于诊断或自动报警。
 
-## 说明
+## 萤石设备接入
 
-本仓库为研究与比赛原型。第三方组件及许可证信息见 `THIRD_PARTY_NOTICES.md`。
+设备凭据必须写在本机 `.env` 或系统环境变量中，严禁提交：
+
+```powershell
+python scripts/probe_ezviz_devices.py --write-report outputs/device-capability-live.md
+python scripts/probe_ezviz_stream.py --frames 3
+python scripts/run_live_monitor.py --checkpoint <checkpoint.pt> --input <authorized-stream-url> --device auto
+```
+
+播放 URL 往往包含短期令牌，不能写进 README、日志截图或 Git 提交。设备能力不足、码流过期、无人像或模型窗口不足时，系统应输出质量原因或 `abstained`，而不是伪造跌倒告警。
+
+## 证据、部署与开发
+
+- 部署与演示：[部署说明](docs/deployment.md)、[演示脚本](docs/demo-script.md)
+- 数据/模型边界：[数据集说明](datasets/README.md)、[模型说明](models/README.md)、[模型权重说明](docs/model-weights.md)
+- 已提交材料：[算法验证摘要](docs/submission/algorithm_validation_summary.md)、[设备验证协议](docs/submission/device_validation_protocol.md)
+- 测试：`python -m pytest tests -q`
+
+如需网页端、FastAPI 服务和萤石桥接，请使用配套 `elderly-care` 应用工程；本仓库专注于算法、设备适配、评估与可复现发布。

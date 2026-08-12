@@ -60,3 +60,47 @@ def test_real_training_resolves_dataset_subdirectory_and_uses_clip_mask(tmp_path
     )
     assert result["demo"] is False
     assert result["promoted"] is False
+
+
+def test_real_batches_are_seeded_for_reproducible_epoch_order():
+    from scripts.train_phase_model import _real_batches
+
+    class TensorStub:
+        def __init__(self, value):
+            self.value = value
+
+        def reshape(self, *_shape):
+            return self
+
+        def __getitem__(self, index):
+            return self.value[index]
+
+    class TorchStub:
+        float32 = object()
+
+        @staticmethod
+        def as_tensor(value, **_kwargs):
+            return TensorStub(value)
+
+        @staticmethod
+        def zeros(_size, **_kwargs):
+            return 0
+
+        @staticmethod
+        def ones(_size, **_kwargs):
+            return 1
+
+        @staticmethod
+        def tensor(value, **_kwargs):
+            return TensorStub(value)
+
+    samples = [
+        ([index], [[[0, 0, 0]] * 17] * 64, {"phase": None, "coarse_event": "fall"})
+        for index in range(5)
+    ]
+    first = [batch[0][0] for batch in _real_batches(TorchStub, "cpu", samples, seed=7)]
+    repeat = [batch[0][0] for batch in _real_batches(TorchStub, "cpu", samples, seed=7)]
+    changed = [batch[0][0] for batch in _real_batches(TorchStub, "cpu", samples, seed=8)]
+
+    assert first == repeat
+    assert first != changed
