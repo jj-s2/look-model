@@ -19,6 +19,8 @@ def train_urfall_crossdomain_experiment(
     """Train fall LOSO folds while holding one deterministic ADL sequence group out."""
     if type(epochs) is not int or epochs <= 0 or type(adl_folds) is not int or adl_folds < 2:
         raise ValueError("epochs must be positive and adl_folds must be at least two")
+    if type(random_seed) is not int or random_seed < 0:
+        raise ValueError("random_seed must be a non-negative integer")
     fall_poses, fall_labels, fall_sequences, fall_ids = _load_samples(fall_manifest, fall_root)
     adl_poses, adl_sequences, adl_ids = _load_adl(adl_manifest, adl_root)
     values = sorted(set(fall_sequences))
@@ -66,6 +68,7 @@ def train_urfall_crossdomain_experiment(
         })
     report: dict[str, object] = {
         "external_experiment": True, "promoted": False, "validation": "FallLOSO+ADLGroupedHoldout",
+        "random_seed": random_seed,
         "fall_sequence_count": len(values), "adl_holdout_sequence_count": len(adl_values),
         "metrics": {key: float(sum(fold["fall_metrics"][key] for fold in folds) / len(folds)) for key in ("precision", "recall", "f1")},
         "adl_false_positive_rate": float(sum(fold["adl_false_positive_rate"] for fold in folds) / len(folds)),

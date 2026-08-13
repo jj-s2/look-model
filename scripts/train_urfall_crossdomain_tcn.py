@@ -9,7 +9,8 @@ def main() -> int:
     for name in ("fall-manifest","fall-root","adl-manifest","adl-root","output-dir"):
         p.add_argument(f"--{name}",type=Path,required=True)
     p.add_argument("--epochs",type=int,default=80); p.add_argument("--device",choices=("auto","cpu","cuda"),default="auto")
+    p.add_argument("--seed",type=int,default=42)
     a=p.parse_args()
-    r=train_urfall_crossdomain_experiment(a.fall_manifest,a.fall_root,a.adl_manifest,a.adl_root,a.output_dir,epochs=a.epochs,device=a.device)
+    r=train_urfall_crossdomain_experiment(a.fall_manifest,a.fall_root,a.adl_manifest,a.adl_root,a.output_dir,epochs=a.epochs,device=a.device,random_seed=a.seed)
     print(json.dumps(r,ensure_ascii=False,indent=2,sort_keys=True)); return 0
 if __name__=="__main__": raise SystemExit(main())

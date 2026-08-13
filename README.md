@@ -69,6 +69,18 @@ python scripts/train_phase_model.py `
   --epochs 10 --lr-scheduler cosine
 ```
 
+公开 UR Fall 数据上的多随机种子跨域稳定性验证：
+
+```powershell
+python scripts/run_urfall_multiseed.py `
+  --fall-manifest <fall-pose-manifest.jsonl> --fall-root <fall-pose-root> `
+  --adl-manifest <adl-pose-manifest.jsonl> --adl-root <adl-pose-root> `
+  --output-dir outputs/urfall-multiseed `
+  --seeds 17 42 73 --epochs 80 --device cuda --recall-floor 0.8
+```
+
+本次公开数据实测三种子 F1 为 `0.8000–0.8421`，平均 `0.8281±0.0198`；Recall 均为 `0.8000`，ADL 误报率平均 `0.0799`。详见[多随机种子验证报告](docs/submission/urfall_multiseed_validation.md)。该实验仍标记 `promoted=false`。
+
 ## 心理变化筛查
 
 心理通道只接受老人自愿填写的问答或明确同意的文本记录。它会输出趋势、质量状态与人工复核建议；`research_only`、`external_dispatch_allowed=false` 或可靠性不足时一律弃权，不会生成短信、电话或设备播报。
@@ -96,7 +108,7 @@ python scripts/run_live_monitor.py --checkpoint <checkpoint.pt> --input <authori
 
 - 部署与演示：[部署说明](docs/deployment.md)、[演示脚本](docs/demo-script.md)
 - 数据/模型边界：[数据集说明](datasets/README.md)、[模型说明](models/README.md)、[模型权重说明](docs/model-weights.md)
-- 已提交材料：[算法验证摘要](docs/submission/algorithm_validation_summary.md)、[设备验证协议](docs/submission/device_validation_protocol.md)
+- 已提交材料：[算法验证摘要](docs/submission/algorithm_validation_summary.md)、[UR Fall 多随机种子验证](docs/submission/urfall_multiseed_validation.md)、[设备验证协议](docs/submission/device_validation_protocol.md)
 - 测试：`python -m pytest tests -q`
 
 如需网页端、FastAPI 服务和萤石桥接，请使用配套 `elderly-care` 应用工程；本仓库专注于算法、设备适配、评估与可复现发布。
