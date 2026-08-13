@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "version": "stanford-gds15-zh-2026-08-02",
+    "source_url": "https://web.stanford.edu/~yesavage/GDS",
+    "source_urls": [
+      "https://web.stanford.edu/~yesavage/GDS",
+      "https://web.stanford.edu/~yesavage/Chinese.html",
+      "https://web.stanford.edu/~yesavage/Australian%20Chinese.pdf"
+    ],
+    "accessed_at": "2026-08-02",
+    "purpose": "screening_not_diagnosis",
+    "exact_order": ["q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09", "q10", "q11", "q12", "q13", "q14", "q15"],
+    "translation_note": "Chinese wording follows the Stanford Chinese GDS-15 publication; English prompts preserve source-content review traceability."
+  },
+  "items": [
+    {"id": "q01", "question_en": "Are you basically satisfied with your life?", "question_zh": "你对自己的生活基本上满意吗？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q02", "question_en": "Have you dropped many of your activities and interests?", "question_zh": "你是否已放弃了自己的很多活动和兴趣？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q03", "question_en": "Do you feel that your life is empty?", "question_zh": "你是否觉得生活空虚？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q04", "question_en": "Do you often get bored?", "question_zh": "你是否常常感到无聊？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q05", "question_en": "Are you in good spirits most of the time?", "question_zh": "你是否常常感到精神不错，精神还可以？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q06", "question_en": "Are you afraid that something bad is going to happen to you?", "question_zh": "你是否害怕会有不好的事情发生在你身上呢？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q07", "question_en": "Do you feel happy most of the time?", "question_zh": "你大部分时间心情还可以吗？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q08", "question_en": "Do you often feel helpless?", "question_zh": "你是否经常觉得无助？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q09", "question_en": "Do you prefer to stay at home, rather than going out and doing new things?", "question_zh": "你是否宁愿留在家里，而不外出并做些新的事呢？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q10", "question_en": "Do you feel you have more problems with memory than most?", "question_zh": "你是否觉得你的记忆力比多数人差？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q11", "question_en": "Do you think it is wonderful to be alive now?", "question_zh": "你是否觉得活着真好，活着还不错？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q12", "question_en": "Do you feel pretty worthless the way you are now?", "question_zh": "你是否觉得自己现在很没用呢？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q13", "question_en": "Do you feel full of energy?", "question_zh": "你是否感到精力充足，精力足够应付日常的生活？", "options": ["是", "否"], "risk_answer": false},
+    {"id": "q14", "question_en": "Do you feel that your situation is hopeless?", "question_zh": "你是否觉得自己的处境没有希望？", "options": ["是", "否"], "risk_answer": true},
+    {"id": "q15", "question_en": "Do you think that most people are better off than you are?", "question_zh": "你是否觉得多数人都比你活得好吗？", "options": ["是", "否"], "risk_answer": true}
+  ]
+}

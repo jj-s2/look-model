@@ -1,0 +1,27 @@
+{
+  "claim_boundary": "Public-data stability evidence; not a deployment or clinical claim.",
+  "epochs": 80,
+  "external_experiment": true,
+  "input_sha256": {
+    "adl_manifest": "ee0f3c9b023ee28eb7eba9fb066873e795de97c4dcd1f5d0f1b938bfd63d4be1",
+    "fall_manifest": "54be86baef01d7d8aedae6d3595533bff2bc1c082e3c31c56b473cb10e6e0c36"
+  },
+  "metrics": {
+    "adl_false_positive_rate": {"count": 3, "maximum": 0.09375, "mean": 0.07986111111111112, "minimum": 0.057291666666666664, "population_stddev": 0.0161000321102356},
+    "fall_f1": {"count": 3, "maximum": 0.8421052631578948, "mean": 0.8280701754385965, "minimum": 0.8000000000000002, "population_stddev": 0.019848611401727608},
+    "fall_precision": {"count": 3, "maximum": 0.8888888888888888, "mean": 0.8592592592592592, "minimum": 0.8, "population_stddev": 0.041902624070313886},
+    "fall_recall": {"count": 3, "maximum": 0.8, "mean": 0.8000000000000002, "minimum": 0.8, "population_stddev": 1.1102230246251565e-16},
+    "threshold": {"count": 3, "maximum": 0.3649662137031555, "mean": 0.2476270248492559, "minimum": 0.1338421255350113, "population_stddev": 0.09438947951082897}
+  },
+  "per_seed": [
+    {"fixed_threshold_adl_false_positive_rate": 0.048838383838383834, "fixed_threshold_metrics": {"f1": 0.6666666666666667, "precision": 0.65, "recall": 0.7}, "seed": 17, "selected_threshold": {"adl_false_positive_rate": 0.09375, "fall_f1": 0.8000000000000002, "fall_precision": 0.8, "fall_recall": 0.8, "recall_floor": 0.8, "selection_source": "fall_loso_predictions_only", "threshold": 0.1338421255350113}},
+    {"fixed_threshold_adl_false_positive_rate": 0.04373737373737374, "fixed_threshold_metrics": {"f1": 0.6666666666666667, "precision": 0.65, "recall": 0.7}, "seed": 42, "selected_threshold": {"adl_false_positive_rate": 0.08854166666666667, "fall_f1": 0.8421052631578948, "fall_precision": 0.8888888888888888, "fall_recall": 0.8, "recall_floor": 0.8, "selection_source": "fall_loso_predictions_only", "threshold": 0.24407273530960083}},
+    {"fixed_threshold_adl_false_positive_rate": 0.03318181818181819, "fixed_threshold_metrics": {"f1": 0.7166666666666667, "precision": 0.7, "recall": 0.75}, "seed": 73, "selected_threshold": {"adl_false_positive_rate": 0.057291666666666664, "fall_f1": 0.8421052631578948, "fall_precision": 0.8888888888888888, "fall_recall": 0.8, "recall_floor": 0.8, "selection_source": "fall_loso_predictions_only", "threshold": 0.3649662137031555}}
+  ],
+  "promoted": false,
+  "recall_floor": 0.8,
+  "schema_version": "urfall.multiseed.v1",
+  "seed_count": 3,
+  "seeds": [17, 42, 73],
+  "validation": "FallLOSO+ADLGroupedHoldout"
+}

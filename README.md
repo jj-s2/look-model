@@ -1,42 +1,114 @@
-# Look Model
+# Look Model：老年人多模态风险监测
 
-面向老年人居家场景的多模态 AI 研究原型。目前重点包括视频人体姿态分析、跌倒/日常活动识别、步态稳定性评估，以及萤石设备输入适配。
+面向居家与养老照护场景的可复现研究/比赛原型。仓库将骨架时序跌倒预判、可靠性门控、连续事件解码、萤石设备适配与低负担心理变化筛查组合为可审计链路。
 
-## 主要模块
+> 安全边界：这不是医疗器械。跌倒发布权重仍需在真实场景完成阈值校准；心理模块仅用于自愿、低频、非诊断性变化提示，默认不触发外部告警。
 
-- `vision/`：视频、摄像头与萤石流输入适配。
-- `risk/`：步态稳定性和跌倒风险规则。
-- `fusion/`：多模态融合模块预留目录。
-- `radar/`：雷达与生理数据接入预留目录。
-- `scripts/`：数据处理、训练、评估和端到端运行脚本。
-- `configs/`：OpenMMLab、PoseC3D 等实验配置。
-- `tests/`：基础自动化测试。
-- `docs/`：方案、进度和兼容性文档。
+## 仓库结构
 
-## 环境
+| 目录 | 用途 |
+| --- | --- |
+| `risk/phase_model/` | RG-PCNet / PA-DTSF 骨架时序模型、校准、事件解码和连续评估 |
+| `mental/` | PACE-WB 与文本心理筛查的研究性、人工复核链路 |
+| `devices/`、`vision/` | 萤石流、摄像头、姿态与雷达适配 |
+| `alerts/`、`pipeline/`、`core/` | 风险事件、可靠性门控、告警分发和运行编排 |
+| `configs/` | 模型、训练和筛查配置 |
+| `scripts/` | 数据准备、训练、评估、绘图和实时运行入口 |
+| `tests/` | 单元、集成和连续评估回归测试 |
+| `docs/` | 部署、演示、评估与提交材料 |
 
-推荐使用 Conda：
+## 快速开始
+
+建议使用 Python 3.10+ 和 Conda：
 
 ```powershell
 conda env create -f environment.yml
 conda activate elderly-ai
+python -m pytest tests/risk/phase_model tests/integration -q
 ```
 
-也可根据 `requirements.txt` 在 Python 3.10 环境中安装依赖。
+原始视频、设备令牌、抓帧、训练缓存和大部分运行输出都不会上传。只保留具有明确说明与版本边界的发布权重及其元数据。
 
-## 快速检查
+## 跌倒预判与实时运行
+
+已随仓库保留的研究发布包：
+
+- `outputs/releases/padtfs-gmdcsa24-gpu-norm/`：骨架跌倒阶段模型、锁定数据划分与指标；
+- 留出测试：32 个片段，ROC-AUC `0.836`、Precision `0.800`、Recall `0.750`、F1 `0.774`；
+- `metrics.json` 明确标记 `promoted=false`，因此不应将这些数字称为真实家庭或临床效果。
+
+本地视频或授权播放地址的实时冒烟：
 
 ```powershell
-python scripts/test_cuda.py
-python -m pytest tests
+python scripts/run_live_monitor.py `
+  --checkpoint outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt `
+  --input <local-video.mp4-or-authorized-stream-url> `
+  --device auto `
+  --smoke-seconds 10 `
+  --no-browser
 ```
 
-端到端入口为 `scripts/run_pipeline.py`。运行前请根据本机目录、模型权重和输入设备调整配置。
+从冻结测试划分生成 ROC/PR、校准、混淆矩阵和阈值图：
 
-## 数据与模型
+```powershell
+python scripts/plot_phase_results.py `
+  --checkpoint outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt `
+  --device auto `
+  --output-dir docs/figures/padtfs-gmdcsa24-gpu-norm
+```
 
-原始数据、处理后的序列化数据、模型权重、训练检查点和设备凭据不会提交到 Git。协作者应按照 `datasets/README.md`、`models/README.md` 及相关脚本自行准备。
+训练只接受已经提取好的姿态特征与冻结划分，不会把原始视频静默混入发布数据：
 
-## 说明
+```powershell
+python scripts/train_phase_model.py `
+  --dataset-lock <dataset_lock.json> `
+  --split-manifest <split_manifest.json> `
+  --data-root <feature-root> `
+  --output <run-output> `
+  --release-id <release-id> `
+  --epochs 10 --lr-scheduler cosine
+```
 
-本仓库为研究与比赛原型。第三方组件及许可证信息见 `THIRD_PARTY_NOTICES.md`。
+公开 UR Fall 数据上的多随机种子跨域稳定性验证：
+
+```powershell
+python scripts/run_urfall_multiseed.py `
+  --fall-manifest <fall-pose-manifest.jsonl> --fall-root <fall-pose-root> `
+  --adl-manifest <adl-pose-manifest.jsonl> --adl-root <adl-pose-root> `
+  --output-dir outputs/urfall-multiseed `
+  --seeds 17 42 73 --epochs 80 --device cuda --recall-floor 0.8
+```
+
+本次公开数据实测三种子 F1 为 `0.8000–0.8421`，平均 `0.8281±0.0198`；Recall 均为 `0.8000`，ADL 误报率平均 `0.0799`。详见[多随机种子验证报告](docs/submission/urfall_multiseed_validation.md)。该实验仍标记 `promoted=false`。
+
+## 心理变化筛查
+
+心理通道只接受老人自愿填写的问答或明确同意的文本记录。它会输出趋势、质量状态与人工复核建议；`research_only`、`external_dispatch_allowed=false` 或可靠性不足时一律弃权，不会生成短信、电话或设备播报。
+
+```powershell
+python scripts/train_wellbeing_shadow.py --input <consented-checkins.jsonl> --output-dir outputs/mental/shadow-run
+python scripts/evaluate_wellbeing_shadow.py --artifact <shadow_model.joblib> --input <held-out-checkins.jsonl> --output <evaluation.json>
+```
+
+`outputs/releases/eatd-text-screening-research-only/` 是文本研究基线：验证 AUC `0.670`、F1 `0.300`，仅供复现和后续改进，不可用于诊断或自动报警。
+
+## 萤石设备接入
+
+设备凭据必须写在本机 `.env` 或系统环境变量中，严禁提交：
+
+```powershell
+python scripts/probe_ezviz_devices.py --write-report outputs/device-capability-live.md
+python scripts/probe_ezviz_stream.py --frames 3
+python scripts/run_live_monitor.py --checkpoint <checkpoint.pt> --input <authorized-stream-url> --device auto
+```
+
+播放 URL 往往包含短期令牌，不能写进 README、日志截图或 Git 提交。设备能力不足、码流过期、无人像或模型窗口不足时，系统应输出质量原因或 `abstained`，而不是伪造跌倒告警。
+
+## 证据、部署与开发
+
+- 部署与演示：[部署说明](docs/deployment.md)、[演示脚本](docs/demo-script.md)
+- 数据/模型边界：[数据集说明](datasets/README.md)、[模型说明](models/README.md)、[模型权重说明](docs/model-weights.md)
+- 已提交材料：[算法验证摘要](docs/submission/algorithm_validation_summary.md)、[UR Fall 多随机种子验证](docs/submission/urfall_multiseed_validation.md)、[设备验证协议](docs/submission/device_validation_protocol.md)
+- 测试：`python -m pytest tests -q`
+
+如需网页端、FastAPI 服务和萤石桥接，请使用配套 `elderly-care` 应用工程；本仓库专注于算法、设备适配、评估与可复现发布。

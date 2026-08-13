@@ -1,272 +1,342 @@
-"""跌倒前预判核心模块：基于骨架时序的步态稳定性评分。
+"""Scale-invariant gait features extracted from COCO-17 pose sequences.
 
-区别于 PoseC3D 的"跌倒后二分类"，本模块从连续骨架序列中提取步态稳定性指标，
-输出连续风险评分 [0,1]，用于跌倒发生前的风险预判。
-
-COCO 17 关键点索引：
-  0: nose            1: l_eye        2: r_eye
-  3: l_ear           4: r_ear
-  5: l_shoulder      6: r_shoulder
-  7: l_elbow         8: r_elbow      9: l_wrist   10: r_wrist
-  11: l_hip          12: r_hip
-  13: l_knee         14: r_knee
-  15: l_ankle        16: r_ankle
+The implementation deliberately uses only the Python standard library so that
+the risk layer can run on an edge device before NumPy/Torch are installed.
 """
-import numpy as np
+from __future__ import annotations
 
-# 关键点索引常量
-NOSE = 0
+from dataclasses import asdict, dataclass
+from math import atan2, degrees, exp, hypot, isfinite, sqrt
+from statistics import median
+from typing import Any, Iterable, Sequence
+
+
 L_SHOULDER, R_SHOULDER = 5, 6
 L_HIP, R_HIP = 11, 12
 L_ANKLE, R_ANKLE = 15, 16
+_EPSILON = 1e-6
+
+
+@dataclass(frozen=True)
+class GaitFeatures:
+    """Dimensionless gait measurements for a single time window."""
+
+    sway: float = 0.0
+    step_width: float = 0.0
+    step_variability: float = 0.0
+    step_frequency_stability: float = 0.0
+    left_right_symmetry: float = 0.0
+    torso_angle_change: float = 0.0
+    keypoint_quality: float = 0.0
+
+    @property
+    def gait_jitter(self) -> float:
+        """Compatibility name: higher values mean less regular stepping."""
+        return self.step_variability
 
 
 class GaitStabilityAnalyzer:
-    """从骨架序列提取步态稳定性指标并输出风险评分。
+    """Extract robust, scale-independent features from a COCO-17 sequence."""
 
-    用法：
-        analyzer = GaitStabilityAnalyzer()
-        result = analyzer.analyze(keypoints, keypoint_scores=None)
-        # result: dict, 含各指标值与 risk_score
-    """
+    def __init__(self, fps: float = 29.7, window_sec: float = 3.0):
+        self.fps = float(fps) if fps and isfinite(float(fps)) else 29.7
+        self.window = max(int(self.fps * float(window_sec)), 1)
 
-    def __init__(self, fps=29.7, window_sec=3.0):
+    def extract_features(self, sequence: Any, frame_size: Sequence[float] | None) -> GaitFeatures:
+        """Return gait features normalized by torso length (or frame diagonal).
+
+        ``sequence`` accepts nested lists or array-like objects in ``(T,17,2)``
+        or ``(N,T,17,2)`` form.  A third keypoint component is interpreted as
+        keypoint confidence; callers can instead pass a mapping containing
+        ``keypoints`` and ``keypoint_scores``.
         """
-        Args:
-            fps: 视频帧率（GMDCSA24 默认 ~29.7）
-            window_sec: 滑动窗口长度（秒），用于计算时序统计量
-        """
-        self.fps = fps
-        self.window = max(int(fps * window_sec), 1)
+        raw, scores = self._split_sequence(sequence)
+        frames = self._frames(raw)
+        if not frames:
+            return GaitFeatures()
+        points, embedded_quality = self._point_frames(frames)
+        quality = self._quality(scores, embedded_quality, len(points))
+        scale = self._normalizer(points, frame_size)
 
-    def analyze(self, keypoints, keypoint_scores=None):
-        """分析骨架序列，返回步态稳定性指标与风险评分。
+        centers = [self._midpoint(frame[L_HIP], frame[R_HIP]) for frame in points]
+        widths = [abs(frame[L_ANKLE][0] - frame[R_ANKLE][0]) / scale
+                  for frame in points if frame[L_ANKLE] and frame[R_ANKLE]]
+        sway = self._std([center[0] / scale for center in centers if center])
+        step_width = self._median_or_zero(widths)
+        step_variability = self._std(widths)
 
-        Args:
-            keypoints: np.ndarray, shape (T, 17, 2) 或 (N, T, 17, 2)
-                      单人场景取第一人
-            keypoint_scores: np.ndarray, shape (T, 17) 或 (N, T, 17)，可选
+        angles = []
+        for frame in points:
+            shoulder = self._midpoint(frame[L_SHOULDER], frame[R_SHOULDER])
+            hip = self._midpoint(frame[L_HIP], frame[R_HIP])
+            if shoulder and hip:
+                angles.append(degrees(atan2(abs(shoulder[0] - hip[0]),
+                                           max(abs(shoulder[1] - hip[1]), _EPSILON))))
+        angle_change = self._mean_abs_difference(angles)
 
-        Returns:
-            dict: {
-                'activity_level': float,        # 活动量（像素/帧）
-                'activity_trend': float,        # 活动量变化率（后段-前段）
-                'com_height': float,            # 重心垂直高度（像素）
-                'com_vertical_drop': float,     # 重心垂直下降量（像素）
-                'com_sway': float,              # 重心横向摆动标准差（像素）
-                'body_lean_angle': float,       # 身体倾斜角（度）
-                'body_lean_var': float,         # 倾斜角方差
-                'gait_jitter': float,           # 步态抖动度（脚踝速度方差）
-                'confidence': float,            # 关键点平均置信度
-                'risk_score': float,            # 综合风险评分 [0,1]
-            }
-        """
-        kp = self._normalize_keypoints(keypoints)
-        scores = self._normalize_scores(keypoint_scores, kp.shape[0])
-        T = kp.shape[0]
+        left_path = self._path_length([frame[L_ANKLE] for frame in points]) / scale
+        right_path = self._path_length([frame[R_ANKLE] for frame in points]) / scale
+        symmetry = 0.0
+        if left_path + right_path > _EPSILON:
+            symmetry = max(0.0, min(1.0, 1.0 - abs(left_path - right_path) /
+                                    (left_path + right_path)))
 
-        if T < 3:
-            return self._empty_result()
-
-        # 1. 活动量：所有关键点帧间位移均值
-        activity = self._calc_activity(kp)  # (T-1,)
-
-        # 2. 重心（髋部中点）
-        com = (kp[:, L_HIP] + kp[:, R_HIP]) / 2.0  # (T, 2)
-        com_x, com_y = com[:, 0], com[:, 1]
-
-        # 3. 重心横向摆动
-        com_sway = float(np.std(com_x)) if T > 1 else 0.0
-
-        # 4. 重心垂直下降（后段均值 - 前段均值，y增大=下降）
-        half = T // 2
-        if half > 0:
-            com_vertical_drop = float(np.mean(com_y[half:]) - np.mean(com_y[:half]))
-        else:
-            com_vertical_drop = 0.0
-
-        # 5. 身体倾斜角（肩-髋向量与垂直方向夹角）
-        shoulder_mid = (kp[:, L_SHOULDER] + kp[:, R_SHOULDER]) / 2.0
-        torso_vec = shoulder_mid - com  # (T, 2), dx, dy
-        # 与垂直向下方向 (0,1) 的夹角（度）
-        # angle = atan2(|dx|, |dy|) * 180/pi
-        dx, dy = torso_vec[:, 0], torso_vec[:, 1]
-        angles = np.degrees(np.arctan2(np.abs(dx), np.maximum(np.abs(dy), 1e-6)))
-        body_lean_angle = float(np.mean(angles))
-        body_lean_var = float(np.var(angles))
-
-        # 6. 步态抖动度：脚踝速度方差
-        ankles = kp[:, [L_ANKLE, R_ANKLE]]  # (T, 2, 2)
-        if T > 2:
-            ankle_vel = np.diff(ankles, axis=0)  # (T-1, 2, 2)
-            ankle_speed = np.linalg.norm(ankle_vel, axis=2)  # (T-1, 2)
-            gait_jitter = float(np.var(ankle_speed))
-        else:
-            gait_jitter = 0.0
-
-        # 7. 活动量趋势（后段均值 - 前段均值）
-        if len(activity) >= 2:
-            ah = len(activity) // 2
-            activity_trend = float(np.mean(activity[ah:]) - np.mean(activity[:ah]))
-        else:
-            activity_trend = 0.0
-
-        # 8. 置信度
-        confidence = float(np.mean(scores)) if scores is not None else 1.0
-
-        # 9. 末段变化率指标（核心：跌倒前兆是"最后几帧的突变"）
-        last_n = min(int(self.fps * 1.0), T)  # 最后 1 秒
-        if last_n < 3:
-            last_n = min(3, T)
-        # 末段重心垂直速度（正=下降，图像 y 增大）
-        if T > last_n:
-            com_vel_y = float(np.mean(np.diff(com_y[-last_n:])))
-        else:
-            com_vel_y = 0.0
-        # 末段活动量突增比（末段 / 前段）
-        if len(activity) > last_n and np.mean(activity[:-last_n]) > 1e-3:
-            activity_burst = float(np.mean(activity[-last_n:]) /
-                                   max(np.mean(activity[:-last_n]), 1e-3))
-        else:
-            activity_burst = float(np.mean(activity[-last_n:]) if len(activity) > 0 else 0)
-        # 末段倾斜角增大
-        if T > last_n:
-            lean_trend = float(np.mean(angles[-last_n:]) - np.mean(angles[:-last_n]))
-        else:
-            lean_trend = 0.0
-
-        # 10. 综合风险评分（规则版，聚焦末段突变）
-        risk_score = self._rule_based_risk(
-            com_vertical_drop=com_vertical_drop,
-            com_vel_y=com_vel_y,
-            activity_burst=activity_burst,
-            lean_trend=lean_trend,
-            body_lean_angle=body_lean_angle,
-            com_sway=com_sway,
-            gait_jitter=gait_jitter,
-            activity_trend=activity_trend,
-            kp=kp,
+        cadence_stability = self._cadence_stability(points)
+        return GaitFeatures(
+            sway=self._finite(sway),
+            step_width=self._finite(step_width),
+            step_variability=self._finite(step_variability),
+            step_frequency_stability=self._finite(cadence_stability),
+            left_right_symmetry=self._finite(symmetry),
+            torso_angle_change=self._finite(angle_change),
+            keypoint_quality=self._finite(quality),
         )
 
-        return {
-            'activity_level': float(np.mean(activity)),
-            'activity_trend': activity_trend,
-            'com_height': float(np.mean(com_y)),
-            'com_vertical_drop': com_vertical_drop,
-            'com_vel_y': com_vel_y,
-            'activity_burst': activity_burst,
-            'com_sway': com_sway,
-            'body_lean_angle': body_lean_angle,
-            'body_lean_var': body_lean_var,
-            'lean_trend': lean_trend,
-            'gait_jitter': gait_jitter,
-            'confidence': confidence,
-            'risk_score': float(risk_score),
-        }
+    def analyze(self, keypoints: Any, keypoint_scores: Any = None) -> dict[str, float]:
+        """Legacy dictionary API retained for existing pre-fall callers."""
+        if len(self._frames(keypoints)) < 3:
+            return self._empty_legacy_result()
+        features = self.extract_features(
+            {"keypoints": keypoints, "keypoint_scores": keypoint_scores}, None)
+        points, _ = self._point_frames(self._frames(keypoints))
+        legacy = self._legacy_measurements(points)
+        legacy["confidence"] = features.keypoint_quality
+        legacy["risk_score"] = self._legacy_risk(legacy)
+        return {**legacy, **asdict(features), "valid": True}
 
-    def analyze_windowed(self, keypoints, keypoint_scores=None, stride=None):
-        """滑动窗口分析，返回每窗的风险评分序列。
-
-        Args:
-            keypoints: (T, 17, 2)
-            stride: 窗口步长（帧），默认 = window/2（50% 重叠）
-
-        Returns:
-            list[dict]: 每个窗口的分析结果，含 'frame_start', 'frame_end'
-        """
-        kp = self._normalize_keypoints(keypoints)
-        scores = self._normalize_scores(keypoint_scores, kp.shape[0])
-        T = kp.shape[0]
-        stride = stride or max(self.window // 2, 1)
-
+    def analyze_windowed(self, keypoints: Any, keypoint_scores: Any = None, stride: int | None = None) -> list[dict[str, float]]:
+        frames = self._frames(keypoints)
+        score_frames = self._score_frames(keypoint_scores)
+        step = stride or max(self.window // 2, 1)
         results = []
-        for start in range(0, max(T - self.window + 1, 1), stride):
-            end = start + self.window
-            if end > T:
-                end = T
-            seg_kp = kp[start:end]
-            seg_sc = scores[start:end] if scores is not None else None
-            r = self.analyze(seg_kp, seg_sc)
-            r['frame_start'] = start
-            r['frame_end'] = end
-            results.append(r)
+        for start in range(0, max(len(frames) - self.window + 1, 1), step):
+            segment = frames[start:start + self.window]
+            segment_scores = score_frames[start:start + len(segment)] if score_frames else None
+            result = self.analyze(segment, segment_scores)
+            result.update(frame_start=start, frame_end=start + len(segment))
+            results.append(result)
         return results
 
-    # ---------- 内部方法 ----------
-
-    def _normalize_keypoints(self, keypoints):
-        """统一为 (T, 17, 2)。"""
-        kp = np.asarray(keypoints, dtype=np.float32)
-        if kp.ndim == 4:
-            kp = kp[0]  # 取第一人
-        elif kp.ndim == 2:
-            kp = kp[None]  # 单帧
-        return kp
-
-    def _normalize_scores(self, scores, T):
-        """统一为 (T, 17) 或 None。"""
-        if scores is None:
-            return None
-        sc = np.asarray(scores, dtype=np.float32)
-        if sc.ndim == 3:
-            sc = sc[0]
-        elif sc.ndim == 1:
-            sc = sc[None]
-        return sc
-
-    def _calc_activity(self, kp):
-        """计算帧间活动量（所有关键点位移均值）。"""
-        if kp.shape[0] < 2:
-            return np.zeros(1, dtype=np.float32)
-        diff = np.diff(kp, axis=0)  # (T-1, 17, 2)
-        return np.mean(np.linalg.norm(diff, axis=2), axis=1)  # (T-1,)
-
-    def _rule_based_risk(self, com_vertical_drop, com_vel_y, activity_burst,
-                         lean_trend, body_lean_angle, com_sway, gait_jitter,
-                         activity_trend, kp):
-        """规则版风险评分（聚焦末段突变，后续用训练数据替换为学习版）。
-
-        核心征兆（基于 GMDCSA24 数据观察修正）：
-          - 重心末段下降速度（跌倒最直接前兆）
-          - 末段活动量突增（从静坐到异常动作的过渡）
-          - 倾斜角末段增大趋势
-          - 整窗重心下降量（辅助）
-        注意：GMDCSA24 Fall 多为"坐着→跌倒"，整窗绝对活动量反而低于 ADL，
-        因此聚焦"末段变化率"而非"整窗统计量"。
-        """
-        # 末段重心下降速度（像素/帧），正=下降，>1 视为高风险
-        r_com_vel = self._sigmoid_risk(com_vel_y, threshold=1.0, scale=0.8)
-        # 末段活动量突增比，>1.5 视为高风险（末段活动量是前段 1.5 倍）
-        r_act_burst = self._sigmoid_risk(activity_burst, threshold=1.5, scale=0.8)
-        # 倾斜角末段增大，>3 度视为高风险
-        r_lean_trend = self._sigmoid_risk(lean_trend, threshold=3.0, scale=3.0)
-        # 整窗重心下降量，>15 视为高风险
-        r_drop = self._sigmoid_risk(com_vertical_drop, threshold=15.0, scale=8.0)
-
-        # 加权融合（基于 GMDCSA24 数据区分度校准）
-        # activity_burst 区分度 0.75 > lean_trend 0.67 > com_vel 0.22 > drop 0.08
-        weights = {
-            'act_burst': 0.40,    # 活动突增（区分度最高）
-            'lean_trend': 0.35,   # 倾斜增大趋势
-            'com_vel': 0.15,      # 末段重心下降速度
-            'drop': 0.10,         # 整窗下降量
-        }
-        risk = (weights['act_burst'] * r_act_burst +
-                weights['lean_trend'] * r_lean_trend +
-                weights['com_vel'] * r_com_vel +
-                weights['drop'] * r_drop)
-        return float(np.clip(risk, 0.0, 1.0))
-
-    def _sigmoid_risk(self, value, threshold, scale):
-        """将指标值映射到 [0,1] 风险贡献。value 越大风险越高。"""
-        return float(1.0 / (1.0 + np.exp(-(value - threshold) / scale)))
-
-    def _empty_result(self):
+    def _legacy_measurements(self, points: list[list[tuple[float, float] | None]]) -> dict[str, float]:
+        """Original pixel-domain pre-fall measurements for the legacy API."""
+        centers = [self._midpoint(frame[L_HIP], frame[R_HIP]) for frame in points]
+        center_x = [center[0] for center in centers if center]
+        center_y = [center[1] for center in centers if center]
+        activity = []
+        for previous, current in zip(points, points[1:]):
+            displacements = [hypot(current[index][0] - previous[index][0],
+                                   current[index][1] - previous[index][1])
+                             for index in range(17)
+                             if previous[index] is not None and current[index] is not None]
+            if displacements:
+                activity.append(sum(displacements) / len(displacements))
+        half = len(center_y) // 2
+        vertical_drop = (sum(center_y[half:]) / len(center_y[half:]) -
+                         sum(center_y[:half]) / len(center_y[:half])) if half else 0.0
+        angles = []
+        for frame in points:
+            shoulder = self._midpoint(frame[L_SHOULDER], frame[R_SHOULDER])
+            hip = self._midpoint(frame[L_HIP], frame[R_HIP])
+            if shoulder and hip:
+                angles.append(degrees(atan2(abs(shoulder[0] - hip[0]),
+                                           max(abs(shoulder[1] - hip[1]), _EPSILON))))
+        ankle_speeds = []
+        for previous, current in zip(points, points[1:]):
+            for index in (L_ANKLE, R_ANKLE):
+                if previous[index] and current[index]:
+                    ankle_speeds.append(hypot(current[index][0] - previous[index][0],
+                                               current[index][1] - previous[index][1]))
+        last_n = min(max(int(self.fps), 3), len(points))
+        com_vel_y = (sum(current - previous for previous, current in
+                         zip(center_y[-last_n:], center_y[-last_n + 1:])) /
+                     max(last_n - 1, 1)) if len(center_y) >= last_n else 0.0
+        if len(activity) > last_n and sum(activity[:-last_n]) / len(activity[:-last_n]) > _EPSILON:
+            activity_burst = ((sum(activity[-last_n:]) / len(activity[-last_n:])) /
+                              (sum(activity[:-last_n]) / len(activity[:-last_n])))
+        else:
+            activity_burst = sum(activity[-last_n:]) / len(activity[-last_n:]) if activity else 0.0
+        activity_half = len(activity) // 2
+        activity_trend = ((sum(activity[activity_half:]) / len(activity[activity_half:])) -
+                          (sum(activity[:activity_half]) / len(activity[:activity_half]))) if activity_half else 0.0
+        lean_trend = ((sum(angles[-last_n:]) / len(angles[-last_n:])) -
+                      (sum(angles[:-last_n]) / len(angles[:-last_n]))) if len(angles) > last_n else 0.0
         return {
-            'activity_level': 0.0, 'activity_trend': 0.0,
-            'com_height': 0.0, 'com_vertical_drop': 0.0,
-            'com_vel_y': 0.0, 'activity_burst': 0.0,
-            'com_sway': 0.0, 'body_lean_angle': 0.0, 'body_lean_var': 0.0,
-            'lean_trend': 0.0,
-            'gait_jitter': 0.0, 'confidence': 0.0, 'risk_score': 0.0,
+            "activity_level": sum(activity) / len(activity) if activity else 0.0,
+            "activity_trend": activity_trend,
+            "com_height": sum(center_y) / len(center_y) if center_y else 0.0,
+            "com_vertical_drop": vertical_drop,
+            "com_vel_y": com_vel_y,
+            "activity_burst": activity_burst,
+            "com_sway": self._std(center_x),
+            "body_lean_angle": sum(angles) / len(angles) if angles else 0.0,
+            "body_lean_var": self._std(angles) ** 2,
+            "lean_trend": lean_trend,
+            "gait_jitter": self._std(ankle_speeds) ** 2,
         }
+
+    @staticmethod
+    def _legacy_risk(metrics: dict[str, float]) -> float:
+        def contribution(value: float, threshold: float, scale: float) -> float:
+            return 1.0 / (1.0 + exp(-(value - threshold) / scale))
+        risk = (0.40 * contribution(metrics["activity_burst"], 1.5, 0.8) +
+                0.35 * contribution(metrics["lean_trend"], 3.0, 3.0) +
+                0.15 * contribution(metrics["com_vel_y"], 1.0, 0.8) +
+                0.10 * contribution(metrics["com_vertical_drop"], 15.0, 8.0))
+        return min(1.0, max(0.0, risk))
+
+    @staticmethod
+    def _empty_legacy_result() -> dict[str, float]:
+        """Safe legacy result for windows too short to establish a trend."""
+        return {
+            "activity_level": 0.0,
+            "activity_trend": 0.0,
+            "com_height": 0.0,
+            "com_vertical_drop": 0.0,
+            "com_vel_y": 0.0,
+            "activity_burst": 0.0,
+            "com_sway": 0.0,
+            "body_lean_angle": 0.0,
+            "body_lean_var": 0.0,
+            "lean_trend": 0.0,
+            "gait_jitter": 0.0,
+            "confidence": 0.0,
+            "risk_score": 0.0,
+            **asdict(GaitFeatures()),
+            "valid": False,
+        }
+
+    @staticmethod
+    def _to_list(value: Any) -> Any:
+        return value.tolist() if hasattr(value, "tolist") else value
+
+    def _split_sequence(self, sequence: Any) -> tuple[Any, Any]:
+        if isinstance(sequence, dict):
+            return sequence.get("keypoints", sequence.get("points", [])), sequence.get("keypoint_scores")
+        return sequence, None
+
+    def _frames(self, sequence: Any) -> list[Any]:
+        value = self._to_list(sequence)
+        if not isinstance(value, (list, tuple)) or not value:
+            return []
+        # (N,T,17,2): choose first tracked person, matching the former API.
+        if self._is_point(value[0]):
+            return [value]
+        if isinstance(value[0], (list, tuple)) and value[0] and self._is_point(value[0][0]):
+            return list(value)
+        if isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (list, tuple)):
+            return list(value[0])
+        return []
+
+    def _score_frames(self, scores: Any) -> list[Any]:
+        value = self._to_list(scores)
+        if not isinstance(value, (list, tuple)) or not value:
+            return []
+        if isinstance(value[0], (int, float)):
+            return [value]
+        if isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (int, float)):
+            return list(value)
+        if isinstance(value[0], (list, tuple)) and value[0] and isinstance(value[0][0], (list, tuple)):
+            return list(value[0])
+        return []
+
+    @staticmethod
+    def _is_point(value: Any) -> bool:
+        return isinstance(value, (list, tuple)) and len(value) >= 2 and all(
+            isinstance(component, (int, float)) for component in value[:2])
+
+    def _point_frames(self, frames: Iterable[Any]) -> tuple[list[list[tuple[float, float] | None]], list[float]]:
+        result, embedded_quality = [], []
+        for frame in frames:
+            clean = []
+            for index in range(17):
+                point = frame[index] if isinstance(frame, (list, tuple)) and index < len(frame) else None
+                if not self._is_point(point) or not isfinite(float(point[0])) or not isfinite(float(point[1])):
+                    clean.append(None)
+                    continue
+                clean.append((float(point[0]), float(point[1])))
+                if len(point) >= 3 and isinstance(point[2], (int, float)) and isfinite(float(point[2])):
+                    embedded_quality.append(max(0.0, min(1.0, float(point[2]))))
+            result.append(clean)
+        return result, embedded_quality
+
+    def _quality(self, scores: Any, embedded: list[float], frame_count: int) -> float:
+        candidate = self._to_list(scores)
+        values = []
+        def collect(value: Any) -> None:
+            if isinstance(value, (list, tuple)):
+                for item in value:
+                    collect(item)
+            elif isinstance(value, (int, float)) and isfinite(float(value)):
+                values.append(max(0.0, min(1.0, float(value))))
+        if candidate is not None:
+            collect(candidate)
+        if values:
+            return sum(values) / len(values)
+        if embedded:
+            return sum(embedded) / len(embedded)
+        return 1.0 if frame_count else 0.0
+
+    def _normalizer(self, points: list[list[tuple[float, float] | None]], frame_size: Sequence[float] | None) -> float:
+        torso_lengths = []
+        for frame in points:
+            shoulder = self._midpoint(frame[L_SHOULDER], frame[R_SHOULDER])
+            hip = self._midpoint(frame[L_HIP], frame[R_HIP])
+            if shoulder and hip:
+                torso_lengths.append(hypot(shoulder[0] - hip[0], shoulder[1] - hip[1]))
+        valid = [length for length in torso_lengths if length > _EPSILON]
+        if valid:
+            return median(valid)
+        size = self._to_list(frame_size) or ()
+        if isinstance(size, (list, tuple)) and len(size) >= 2:
+            diagonal = hypot(float(size[0]), float(size[1]))
+            if isfinite(diagonal) and diagonal > _EPSILON:
+                return diagonal
+        return 1.0
+
+    def _cadence_stability(self, points: list[list[tuple[float, float] | None]]) -> float:
+        signal = []
+        for frame in points:
+            ankle, hip = frame[L_ANKLE], self._midpoint(frame[L_HIP], frame[R_HIP])
+            if ankle and hip:
+                signal.append(ankle[0] - hip[0])
+        extrema = [index for index in range(1, len(signal) - 1)
+                   if (signal[index] >= signal[index - 1] and signal[index] > signal[index + 1])
+                   or (signal[index] <= signal[index - 1] and signal[index] < signal[index + 1])]
+        intervals = [extrema[index] - extrema[index - 1] for index in range(1, len(extrema))]
+        if not intervals:
+            return 1.0 if len(signal) >= 3 else 0.0
+        mean_interval = sum(intervals) / len(intervals)
+        return 1.0 / (1.0 + self._std(intervals) / max(mean_interval, _EPSILON))
+
+    @staticmethod
+    def _midpoint(left: tuple[float, float] | None, right: tuple[float, float] | None) -> tuple[float, float] | None:
+        if left is None or right is None:
+            return None
+        return ((left[0] + right[0]) / 2.0, (left[1] + right[1]) / 2.0)
+
+    @staticmethod
+    def _path_length(points: list[tuple[float, float] | None]) -> float:
+        total = 0.0
+        for previous, current in zip(points, points[1:]):
+            if previous and current:
+                total += hypot(current[0] - previous[0], current[1] - previous[1])
+        return total
+
+    @staticmethod
+    def _std(values: list[float]) -> float:
+        if not values:
+            return 0.0
+        average = sum(values) / len(values)
+        return sqrt(sum((value - average) ** 2 for value in values) / len(values))
+
+    @staticmethod
+    def _mean_abs_difference(values: list[float]) -> float:
+        return sum(abs(current - previous) for previous, current in zip(values, values[1:])) / max(len(values) - 1, 1)
+
+    @staticmethod
+    def _median_or_zero(values: list[float]) -> float:
+        return float(median(values)) if values else 0.0
+
+    @staticmethod
+    def _finite(value: float) -> float:
+        return float(value) if isfinite(value) else 0.0

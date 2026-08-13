@@ -17,10 +17,33 @@ from __future__ import annotations
 
 import abc
 import os
-from typing import Iterator, Optional
+import time
+from collections.abc import Callable
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+from typing import Any, Iterator, Optional
 
-import cv2
 import numpy as np
+
+from .stream_health import StreamHealth
+
+try:  # Keep fake-capture unit tests importable in environments without OpenCV.
+    import cv2
+except ImportError:  # pragma: no cover - exercised by OpenCV-free deployments.
+    cv2 = None  # type: ignore[assignment]
+
+
+_DEFAULT_BACKOFF_SECONDS = (0.5, 1.0, 2.0, 4.0, 8.0)
+
+
+def _require_cv2() -> Any:
+    if cv2 is None:
+        raise RuntimeError("OpenCV is required for camera/video capture; install opencv-python to use this input source.")
+    return cv2
+
+
+def _opencv_capture_factory(url: str) -> Any:
+    return _require_cv2().VideoCapture(url)
 
 
 class InputAdapter(abc.ABC):
@@ -80,6 +103,15 @@ class InputAdapter(abc.ABC):
                 break
             yield frame
 
+    def timestamp_for_frame(self, wall_clock: datetime) -> datetime:
+        """Return the acquisition time for the most recently returned frame.
+
+        Live inputs do not expose a reliable media timeline, so they retain the
+        caller's wall-clock timestamp. ``LocalVideoAdapter`` overrides this to
+        preserve recorded presentation timestamps during replay.
+        """
+        return wall_clock
+
     # ---- 元信息 ----
     @property
     def is_opened(self) -> bool:
@@ -117,13 +149,14 @@ class InputAdapter(abc.ABC):
     def _build_meta(self) -> dict:
         """从 VideoCapture 读取通用元信息，子类可覆盖补充。"""
         cap = self._cap
+        opencv = _require_cv2()
         meta = {
             "input_type": "unknown",
             "source": str(self.source),
-            "fps": cap.get(cv2.CAP_PROP_FPS) or 0.0,
-            "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0),
-            "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0),
-            "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0),
+            "fps": cap.get(opencv.CAP_PROP_FPS) or 0.0,
+            "frame_count": int(cap.get(opencv.CAP_PROP_FRAME_COUNT) or 0),
+            "width": int(cap.get(opencv.CAP_PROP_FRAME_WIDTH) or 0),
+            "height": int(cap.get(opencv.CAP_PROP_FRAME_HEIGHT) or 0),
         }
         return meta
 
@@ -134,11 +167,16 @@ class LocalVideoAdapter(InputAdapter):
     source: 视频文件路径（mp4/avi/mov 等）
     """
 
+    def __init__(self, source, **kwargs):
+        super().__init__(source, **kwargs)
+        self._timeline_origin: datetime | None = None
+        self._media_position_seconds: float | None = None
+
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
         path = str(self.source)
         if not os.path.isfile(path):
             raise FileNotFoundError(f"视频文件不存在: {path}")
-        return cv2.VideoCapture(path)
+        return _require_cv2().VideoCapture(path)
 
     def _build_meta(self) -> dict:
         meta = super()._build_meta()
@@ -146,6 +184,23 @@ class LocalVideoAdapter(InputAdapter):
         meta["path"] = os.path.abspath(str(self.source))
         meta["file_size"] = os.path.getsize(meta["path"])
         return meta
+
+    def read_frame(self) -> Optional[np.ndarray]:
+        frame = super().read_frame()
+        if frame is None or self._cap is None:
+            return frame
+        position_ms = float(self._cap.get(_require_cv2().CAP_PROP_POS_MSEC) or 0.0)
+        self._media_position_seconds = max(0.0, position_ms / 1000.0)
+        return frame
+
+    def timestamp_for_frame(self, wall_clock: datetime) -> datetime:
+        """Anchor recorded-video PTS to the first polling wall-clock instant."""
+        position = self._media_position_seconds
+        if position is None:
+            return wall_clock
+        if self._timeline_origin is None:
+            self._timeline_origin = wall_clock - timedelta(seconds=position)
+        return self._timeline_origin + timedelta(seconds=position)
 
 
 class WebcamAdapter(InputAdapter):
@@ -162,14 +217,15 @@ class WebcamAdapter(InputAdapter):
         src = self.source
         if isinstance(src, str) and src.isdigit():
             src = int(src)
-        cap = cv2.VideoCapture(src)
+        opencv = _require_cv2()
+        cap = opencv.VideoCapture(src)
         # 协商期望参数
         if "width" in self.kwargs:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.kwargs["width"])
+            cap.set(opencv.CAP_PROP_FRAME_WIDTH, self.kwargs["width"])
         if "height" in self.kwargs:
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.kwargs["height"])
+            cap.set(opencv.CAP_PROP_FRAME_HEIGHT, self.kwargs["height"])
         if "fps" in self.kwargs:
-            cap.set(cv2.CAP_PROP_FPS, self.kwargs["fps"])
+            cap.set(opencv.CAP_PROP_FPS, self.kwargs["fps"])
         return cap
 
     def _build_meta(self) -> dict:
@@ -182,17 +238,146 @@ class WebcamAdapter(InputAdapter):
 
 
 class EzvizStreamAdapter(InputAdapter):
-    """萤石云流适配器（预留）。
+    """A bounded-retry EZVIZ live-stream adapter.
 
-    本期不实现，调用即抛 NotImplementedError。
-    预留接入点：RTSP/RTMP URL 或萤石云 OpenAPI 返回的播放地址。
+    ``url_provider`` obtains a short-lived playback address on every reconnect.
+    URLs never enter health data or exception messages, so credentials embedded in
+    playback URLs are not exposed to callers.
     """
 
+    def __init__(
+        self,
+        url_provider: Callable[[], str],
+        capture_factory: Callable[[str], Any] | None = None,
+        max_retries: int = 5,
+        *,
+        backoff_seconds: tuple[float, ...] = _DEFAULT_BACKOFF_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
+        if max_retries < 0:
+            raise ValueError("max_retries must be non-negative")
+        if not backoff_seconds:
+            raise ValueError("backoff_seconds must not be empty")
+        if any(delay < 0 for delay in backoff_seconds):
+            raise ValueError("backoff_seconds must be non-negative")
+        super().__init__("ezviz_stream")
+        self._url_provider = url_provider
+        if capture_factory is None:
+            _require_cv2()
+            self._capture_factory = _opencv_capture_factory
+        else:
+            self._capture_factory = capture_factory
+        self._max_retries = max_retries
+        self._backoff_seconds = tuple(min(delay, _DEFAULT_BACKOFF_SECONDS[-1]) for delay in backoff_seconds)
+        self._sleep = sleep
+        self._now = now or (lambda: datetime.now(timezone.utc))
+        self._health = StreamHealth()
+        self._closed = False
+
+    @property
+    def health(self) -> StreamHealth:
+        """Return immutable, redaction-safe stream health."""
+        return self._health
+
+    def open(self) -> "EzvizStreamAdapter":
+        if self._closed:
+            raise RuntimeError("stream adapter is closed")
+        return self
+
+    def close(self) -> None:
+        self.release()
+
+    def release(self) -> None:
+        """Release the active capture exactly once and permanently close this adapter."""
+        if self._closed:
+            return
+        self._release_capture()
+        self._closed = True
+        self._health = replace(self._health, state="closed", reason="closed")
+
+    def read(self) -> tuple[bool, np.ndarray | None]:
+        """Read one frame, refreshing the live address after bounded failures."""
+        if self._closed:
+            return False, None
+
+        for attempt in range(self._max_retries + 1):
+            if self._cap is None and not self._connect():
+                if attempt < self._max_retries:
+                    self._sleep_before_retry(attempt)
+                    continue
+                break
+
+            try:
+                ok, frame = self._cap.read()
+            except Exception:
+                ok, frame = False, None
+            if ok and frame is not None:
+                self._health = StreamHealth("healthy", 0, self._now(), None)
+                return True, frame
+
+            self._record_failure("read_failed")
+            self._release_capture()
+            if attempt < self._max_retries:
+                self._sleep_before_retry(attempt)
+
+        self._health = replace(self._health, state="offline")
+        return False, None
+
+    def read_frame(self) -> Optional[np.ndarray]:
+        ok, frame = self.read()
+        return frame if ok else None
+
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        raise NotImplementedError(
-            "ezviz_stream 输入类型本期未实现，"
-            "请使用 local_video 或 webcam。后续可通过 RTSP URL 接入。"
-        )
+        return self._cap
+
+    def _connect(self) -> bool:
+        if self._closed:
+            return False
+        self._health = replace(self._health, state="connecting", reason=None)
+        try:
+            url = self._url_provider()
+            if not isinstance(url, str) or not url:
+                raise ValueError("empty live address")
+        except Exception:
+            self._record_failure("url_refresh_failed")
+            return False
+        capture = None
+        try:
+            capture = self._capture_factory(url)
+            if capture is None or not capture.isOpened():
+                self._safe_release(capture)
+                self._record_failure("capture_open_failed")
+                return False
+            self._cap = capture
+            return True
+        except Exception:
+            self._safe_release(capture)
+            self._record_failure("capture_open_failed")
+            return False
+
+    def _release_capture(self) -> None:
+        if self._cap is None:
+            return
+        try:
+            self._safe_release(self._cap)
+        finally:
+            self._cap = None
+
+    @staticmethod
+    def _safe_release(capture: Any | None) -> None:
+        if capture is None:
+            return
+        try:
+            capture.release()
+        except Exception:
+            pass
+
+    def _record_failure(self, reason: str) -> None:
+        self._health = StreamHealth("degraded", self._health.consecutive_failures + 1, self._health.last_success_at, reason)
+
+    def _sleep_before_retry(self, attempt: int) -> None:
+        self._sleep(self._backoff_seconds[min(attempt, len(self._backoff_seconds) - 1)])
 
 
 # ---- 输入源类型识别 ----
@@ -254,6 +439,8 @@ def create_input_adapter(source, input_type: Optional[str] = None, **kwargs) -> 
             f"不支持的 input_type: {input_type!r}，"
             f"可选值: {list(registry.keys())}"
         )
+    if input_type == "ezviz_stream" and isinstance(source, str):
+        return EzvizStreamAdapter(lambda: source, **kwargs)
     return registry[input_type](source, **kwargs)
 
 
@@ -262,5 +449,6 @@ __all__ = [
     "LocalVideoAdapter",
     "WebcamAdapter",
     "EzvizStreamAdapter",
+    "StreamHealth",
     "create_input_adapter",
 ]

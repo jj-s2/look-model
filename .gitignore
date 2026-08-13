@@ -33,6 +33,9 @@ ENV/
 .venv/
 .env
 
+# ---------------- 子代理隔离工作区 ----------------
+.worktrees/
+
 # ---------------- Conda（项目内隔离安装）----------------
 .conda/
 # Miniconda 安装器
@@ -71,6 +74,8 @@ datasets/processed/**/*.npz
 datasets/processed/**/*.npy
 datasets/annotations/**/*.json
 !datasets/annotations/.gitkeep
+datasets/annotations/unified/**
+!datasets/annotations/unified/.gitkeep
 !datasets/raw/.gitkeep
 !datasets/processed/.gitkeep
 !datasets/splits/.gitkeep
@@ -93,6 +98,8 @@ models/**/*.safetensors
 **/*.onnx
 **/*.engine
 **/*.safetensors
+# Keep the validated, project-specific fall detector checkpoint in version control.
+!experiments/outputs/posec3d_gmdcsa24/best_acc_top1_epoch_45.pth
 work_dirs/
 
 # 序列化数据集与训练中间文件
@@ -136,6 +143,32 @@ demo/**/*.mov
 *.temp
 *.bak
 *.orig
+
+# ---------------- 本地运行输出（不入库） ----------------
+# 保留已验证的发布包与小型心理验证指标；其余抓帧、日志、训练目录和
+# 临时评估结果只保留在本机，避免将设备画面或中间产物推送到 GitHub。
+outputs/**
+!outputs/mental/
+outputs/mental/**
+!outputs/mental/pace-wb-validation/
+!outputs/mental/pace-wb-validation/metrics.json
+!outputs/releases/
+!outputs/releases/eatd-text-screening-research-only/
+!outputs/releases/eatd-text-screening-research-only/README.md
+!outputs/releases/eatd-text-screening-research-only/eatd_text_baseline.joblib
+!outputs/releases/eatd-text-screening-research-only/metrics.json
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/checkpoint.pt
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/dataset_lock.json
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/metrics.json
+!outputs/releases/padtfs-gmdcsa24-gpu-norm/split_manifest.json
+
+# Local assistant settings and handoff scratch files.
+.claude/
+CLAUDE.md
+AGENTS.md
+docs/superpowers/handoff/progress.md
+docs/superpowers/handoff/*-optimization-report.md
 
 # ---------------- 萤石与雷达凭据 ----------------
 **/ezviz_credentials.json

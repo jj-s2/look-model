@@ -1,26 +1,25 @@
 {
-  "schema_version": "1.0",
-  "last_updated": "2026-07-28",
-  "description": "本项目数据集清单。原始视频与压缩包不入库，仅保存下载脚本、校验值与说明。所有条目需在下载完成后回填实际 file_size、checksum、download_date 字段。",
+  "schema_version": "2.0",
+  "last_updated": "2026-08-04",
+  "description": "公开数据集注册表。原始视频和压缩包不入库，只保存来源、许可、版本、校验值和处理状态。",
   "datasets": [
     {
       "name": "GMDCSA24",
       "version": "v2.1",
       "official_source": "https://doi.org/10.5281/zenodo.13354453",
-      "official_source_v2.0_historical": "https://doi.org/10.5281/zenodo.12921216",
       "github_repo": "https://github.com/ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos",
       "github_release_v2.1": "https://github.com/ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos/releases/tag/v2.1",
-      "license": "CC-BY 4.0 (Zenodo dataset); MIT (GitHub repo)",
-      "expected_size_bytes": null,
+      "license": "CC BY 4.0 (Zenodo dataset); MIT (GitHub repo)",
+      "license_status": "confirmed",
+      "download_status": "completed",
+      "expected_size_bytes": 1107545615,
       "expected_size_human": "~1.1 GB",
       "sha256": "d455f90f67060b9c8032701d0a91ff38536eaa5ec85582a7a12e68351af591d7",
       "md5": "3d36f2c5c1a666b99639e4e9fd843efb",
-      "md5_source": "Zenodo record 13354453 文件页面（2026-07-28 访问）",
-      "download_date": "2026-07-28",
-      "download_status": "completed",
+      "download_date": "2026-08-04",
       "download_url": "https://zenodo.org/records/13354453/files/ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos-v2.1.zip",
       "fallback_mirrors": [],
-      "citation": "@dataset{ekram_alam_2024_13354453, author = {Ekram Alam}, title = {{ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos: 2.1}}, month = aug, year = 2024, publisher = {Zenodo}, version = {v2.1}, doi = {10.5281/zenodo.13354453}, url = {https://doi.org/10.5281/zenodo.13354453}}",
+      "citation": "@dataset{ekram_alam_2024_13354453, author = {Ekram Alam}, title = {{ekramalam/GMDCSA24-A-Dataset-for-Human-Fall-Detection-in-Videos: 2.1}}, year = {2024}, publisher = {Zenodo}, version = {v2.1}, doi = {10.5281/zenodo.13354453}}",
       "paper": "@article{alam2024, title={GMDCSA24: A Dataset for Human Fall Detection in Videos}, author={Alam, Ekram and Sufian, Abu and Dutta, Paramartha and Leo, Marco and Hameed, I.A.}, year={2024}, journal={Data in Brief}}",
       "subjects": 4,
       "labels": [
@@ -28,62 +27,209 @@
         "adl"
       ],
       "split_strategy": "leave_one_subject_out",
-      "release_notes_v2.1": "Some modifications have been made to CSV files. Now, CSV files contain classes and their start and time also.",
-      "notes": "v2.1 已在 Zenodo 上确认存在 (record 13354453, 2024-08-21 发布)，相对 v2.0 改进为 CSV 含类别与起止时间。MD5 来自 Zenodo 官方文件页面。",
+      "redistribution": "raw_data_not_committed",
+      "training_allowed": true,
+      "role": [
+        "event_baseline",
+        "event_training"
+      ],
       "actual_size_bytes": 1107545615
     },
     {
-      "name": "CAUCAFall",
-      "version": null,
-      "official_source": "https://data.mendeley.com/datasets/nxytfwty2p",
-      "license": "待下载时确认",
-      "expected_size_bytes": null,
-      "expected_size_human": "~2 GB",
+      "name": "Pre-VFall",
+      "version": "figshare-26488216-2025-04-28",
+      "official_source": "https://figshare.com/articles/dataset/Pre-VFall_Vision_Sensor_Simulated_Early_Signs_of_Fall_Dataset/26488216",
+      "license": "CC BY 4.0",
+      "license_status": "confirmed",
+      "download_status": "not_downloaded",
+      "expected_size_bytes": 21096978752,
+      "expected_size_human": "~19.65 GiB",
       "sha256": null,
       "md5": null,
       "download_date": null,
+      "download_url": "https://ndownloader.figshare.com/files/54008555",
+      "fallback_mirrors": [],
+      "citation": null,
+      "paper": null,
+      "subjects": 9,
+      "labels": [
+        "normal",
+        "abnormal",
+        "fall"
+      ],
+      "split_strategy": "subject_grouped",
+      "redistribution": "raw_data_not_committed",
+      "training_allowed": true,
+      "role": [
+        "prefall_supervision",
+        "cross_view"
+      ],
+      "notes": "九名健康年轻参与者的模拟先兆数据，不得表述为真实老年临床数据。"
+    },
+    {
+      "name": "CAUCAFall",
+      "version": "v4",
+      "official_source": "https://data.mendeley.com/datasets/7w7fccy7ky/4",
+      "license": "CC BY 4.0",
+      "license_status": "confirmed",
       "download_status": "deferred",
+      "expected_size_bytes": null,
+      "expected_size_human": "unknown",
+      "sha256": null,
+      "md5": null,
+      "download_date": null,
       "download_url": null,
       "fallback_mirrors": [],
       "citation": null,
       "paper": null,
-      "subjects": null,
+      "subjects": 10,
       "labels": [
         "fall",
         "adl"
       ],
-      "split_strategy": "subject_level_train_val_test",
-      "notes": "第二批下载，待第一链路跑通后再获取。用于遮挡、光照变化、家庭环境、多种跌倒角度的外部测试。"
+      "split_strategy": "subject_grouped",
+      "redistribution": "raw_data_not_committed",
+      "training_allowed": true,
+      "role": [
+        "domain_generalization",
+        "hard_negative"
+      ],
+      "notes": "家庭环境、遮挡、自然光/人工光/夜间、HIKVISION 红外摄像机。"
     },
     {
       "name": "UP-Fall-3D-Skeletons",
-      "version": null,
-      "official_source": "https://doi.org/10.5281/zenodo.6483483",
-      "license": "待下载时确认",
-      "expected_size_bytes": 4194304,
-      "expected_size_human": "~4 MB",
+      "version": "zenodo-12773013-v1",
+      "official_source": "https://zenodo.org/records/12773013",
+      "license": "not stated on source page",
+      "license_status": "needs_confirmation",
+      "download_status": "deferred",
+      "expected_size_bytes": null,
+      "expected_size_human": "~4 MB listed files",
       "sha256": null,
       "md5": null,
       "download_date": null,
-      "download_status": "deferred",
       "download_url": null,
       "fallback_mirrors": [],
       "citation": null,
       "paper": null,
       "subjects": 5,
       "labels": [
-        "fall",
-        "adl"
+        "impact",
+        "non-impact"
       ],
-      "split_strategy": "debug_only",
-      "notes": "可选下载，仅用于骨架时序分类快速调试。3D 骨架 CSV 不得与 2D RTMPose 关键点不经转换直接混合训练。"
+      "split_strategy": "subject_grouped_debug_only",
+      "redistribution": "forbidden_until_license_confirmed",
+      "training_allowed": false,
+      "role": [
+        "impact_debug"
+      ],
+      "notes": "只允许元数据调查，确认许可前不得进入正式训练或发布。"
+    },
+    {
+      "name": "OmniFall",
+      "version": "huggingface-card-2026-08-04",
+      "official_source": "https://huggingface.co/datasets/simplexsigil2/omnifall",
+      "license": "CC BY-NC 4.0 (dataset card)",
+      "license_status": "confirmed",
+      "download_status": "not_downloaded",
+      "expected_size_bytes": null,
+      "expected_size_human": "dataset card reports 52.6k rows",
+      "sha256": null,
+      "md5": null,
+      "download_date": null,
+      "download_url": null,
+      "fallback_mirrors": [],
+      "citation": "@article{schneider2025omnifall, title={OmniFall: A Unified Staged-to-Wild Benchmark for Human Fall Detection}, year={2025}, url={https://arxiv.org/abs/2505.19889}}",
+      "paper": "https://arxiv.org/abs/2505.19889",
+      "subjects": 101,
+      "labels": [
+        "dataset_card_versioned"
+      ],
+      "split_strategy": "subject_grouped_cross_dataset",
+      "redistribution": "annotations_only_upstream_video_licenses_apply",
+      "training_allowed": true,
+      "academic_only": true,
+      "raw_video_license": "upstream",
+      "role": [
+        "cross_dataset_evaluation",
+        "temporal_labels"
+      ],
+      "notes": "数据卡当前为 16 类；论文摘要描述 10 类，使用数据卡版本并在模型卡记录差异。"
+    },
+    {
+      "name": "NTU RGB+D 120",
+      "version": "official",
+      "official_source": "https://rose1.ntu.edu.sg/dataset/actionRecognition/",
+      "license": "academic research only",
+      "license_status": "confirmed",
+      "download_status": "deferred",
+      "expected_size_bytes": null,
+      "expected_size_human": "skeleton modality approximately 10.3 GB",
+      "sha256": null,
+      "md5": null,
+      "download_date": null,
+      "download_url": null,
+      "fallback_mirrors": [],
+      "citation": null,
+      "paper": "https://arxiv.org/abs/1905.04757",
+      "subjects": 106,
+      "labels": [
+        "A42",
+        "A43",
+        "A5",
+        "A6",
+        "A8",
+        "A9",
+        "A80"
+      ],
+      "split_strategy": "cross_subject_official",
+      "redistribution": "forbidden",
+      "training_allowed": true,
+      "academic_only": true,
+      "role": [
+        "optional_skeleton_pretraining",
+        "hard_negative"
+      ]
+    },
+    {
+      "name": "CHARLS",
+      "version": "official_longitudinal",
+      "official_source": "https://charls.pku.edu.cn/",
+      "license": "official data user agreement",
+      "license_status": "confirmed",
+      "download_status": "deferred",
+      "expected_size_bytes": null,
+      "expected_size_human": "user download",
+      "sha256": null,
+      "md5": null,
+      "download_date": null,
+      "download_url": null,
+      "fallback_mirrors": [],
+      "citation": null,
+      "paper": null,
+      "subjects": 17000,
+      "labels": [
+        "sleep",
+        "activity",
+        "falls",
+        "depression_screening"
+      ],
+      "split_strategy": "survey_wave",
+      "redistribution": "user_agreement",
+      "training_allowed": false,
+      "academic_only": true,
+      "role": [
+        "population_association_only"
+      ],
+      "notes": "只做群体关联和背景研究，不训练摄像头诊断模型。"
     }
   ],
   "global_rules": {
-    "no_random_split_by_video": "必须按受试者划分训练/验证/测试集，禁止同一个人的相似视频同时进入训练与测试",
-    "no_unofficial_mirror": "不得优先使用来源不明的百度网盘、Kaggle 重打包或个人网盘",
+    "no_random_split_by_video": "必须按受试者和同步事件划分，禁止同一人的相似视频同时进入训练与测试",
+    "no_unofficial_mirror": "不得优先使用来源不明的网盘、Kaggle 重打包或个人镜像",
     "source_failure_protocol": "官方源失效时先报告，再给出经过校验的镜像选项",
-    "no_git_large_files": "原始视频、压缩包、模型权重、关键点缓存不得提交 Git，必须写入 .gitignore",
-    "checkpoint_resume": "下载脚本必须支持断点续传或失败重试"
+    "no_git_large_files": "原始视频、压缩包、模型权重、关键点缓存不得提交 Git",
+    "checkpoint_resume": "下载脚本必须支持断点续传或失败重试",
+    "license_gate": "许可不明或禁止再分发的数据不得进入训练和发布包"
   }
 }
